@@ -28,8 +28,11 @@ from enum import Enum
 import serial
 import serial.tools.list_ports
 import websockets
-from websockets.server import WebSocketServerProtocol
+from websockets.http11 import Response
 from http import HTTPStatus
+import http.server
+import socketserver
+import threading
 
 # ============================================================
 # CONFIGURATION
@@ -737,11 +740,12 @@ class GrblServer:
 
     def __init__(self, http_port: int, serial_port: str):
         self.http_port = http_port
+        self.ws_port = http_port + 1  # WebSocket on separate port
         self.serial_port = serial_port
         self.grbl = GrblConnection()
         self.streamer = FileStreamer(self.grbl)
         self.macros = MacroEngine(self.grbl)
-        self.clients: Set[WebSocketServerProtocol] = set()
+        self.clients: Set = set()
         self.html_content: str = ''
 
         # Set up broadcast callbacks
@@ -759,7 +763,7 @@ class GrblServer:
             return_exceptions=True
         )
 
-    async def handle_client(self, websocket: WebSocketServerProtocol):
+    async def handle_client(self, websocket):
         """Handle WebSocket client connection."""
         self.clients.add(websocket)
         print(f'[WS] Client connected ({len(self.clients)} total)')
@@ -775,7 +779,7 @@ class GrblServer:
             self.clients.discard(websocket)
             print(f'[WS] Client disconnected ({len(self.clients)} total)')
 
-    async def handle_message(self, ws: WebSocketServerProtocol, msg: Dict[str, Any]):
+    async def handle_message(self, ws, msg: Dict[str, Any]):
         """Route incoming WebSocket message."""
         msg_type = msg.get('type', '')
 
@@ -858,40 +862,66 @@ class GrblServer:
         elif msg_type == 'macro_cancel':
             self.macros.cancel()
 
-    async def http_handler(self, path: str, request_headers):
-        """Handle HTTP requests (serve jog.html)."""
-        if path == '/' or path == '/index.html':
-            return HTTPStatus.OK, [('Content-Type', 'text/html')], self.html_content.encode()
-        return HTTPStatus.NOT_FOUND, [], b'Not Found'
-
     def load_html(self):
         """Load jog.html from same directory as script."""
         script_dir = Path(__file__).parent
         html_path = script_dir / 'jog.html'
         if html_path.exists():
-            self.html_content = html_path.read_text()
+            # Update WebSocket URL in HTML to use ws_port
+            content = html_path.read_text()
+            # Replace the getWsUrl function to use the correct WS port
+            self.html_content = content.replace(
+                "return 'ws://' + window.location.host + '/ws';",
+                f"return 'ws://' + window.location.hostname + ':{self.ws_port}';"
+            )
             print(f'[Server] Loaded {html_path}')
         else:
             self.html_content = '<html><body><h1>jog.html not found</h1></body></html>'
             print(f'[Server] WARNING: {html_path} not found')
 
+    def run_http_server(self):
+        """Run HTTP server in a thread."""
+        script_dir = Path(__file__).parent
+
+        class Handler(http.server.SimpleHTTPRequestHandler):
+            def __init__(handler_self, *args, **kwargs):
+                super().__init__(*args, directory=str(script_dir), **kwargs)
+
+            def do_GET(handler_self):
+                if handler_self.path == '/' or handler_self.path == '/index.html':
+                    handler_self.send_response(200)
+                    handler_self.send_header('Content-type', 'text/html')
+                    handler_self.end_headers()
+                    handler_self.wfile.write(self.html_content.encode())
+                else:
+                    super().do_GET()
+
+            def log_message(handler_self, format, *args):
+                pass  # Suppress HTTP logs
+
+        with socketserver.TCPServer(('0.0.0.0', self.http_port), Handler) as httpd:
+            print(f'[HTTP] Serving on http://0.0.0.0:{self.http_port}')
+            httpd.serve_forever()
+
     async def start(self):
         """Start the server."""
         self.load_html()
+
+        # Start HTTP server in background thread
+        http_thread = threading.Thread(target=self.run_http_server, daemon=True)
+        http_thread.start()
 
         # Auto-connect to serial port
         if os.path.exists(self.serial_port):
             await self.grbl.connect(self.serial_port)
 
-        # Start WebSocket server with HTTP handler
+        # Start WebSocket server
         async with websockets.serve(
             self.handle_client,
             '0.0.0.0',
-            self.http_port,
-            process_request=self.http_handler,
+            self.ws_port,
         ):
-            print(f'[Server] Running on http://0.0.0.0:{self.http_port}')
-            print(f'[Server] WebSocket at ws://0.0.0.0:{self.http_port}/ws')
+            print(f'[WS] WebSocket server on ws://0.0.0.0:{self.ws_port}')
             await asyncio.Future()  # Run forever
 
 # ============================================================
