@@ -531,71 +531,91 @@ class MacroEngine:
         self.set_z_done: bool = False
 
     async def run_set_z(self):
-        """Run the SetZ macro."""
+        """
+        Run the SetZ macro - matches original CNCjs macro:
+
+        ; SET_Z - Probe and store Z offset for TOOL_CHANGE
+        %startX = posx
+        %startY = posy
+        %startZ = posz
+        G53 G0 Z-1               ; Raise to safe Z (machine)
+        %offset = posz - startZ  ; Calculate offset we moved
+        G10 L20 P1 Z-1           ; Temporarily set work Z to -1
+        G28                      ; Go to G28 position (probe location)
+        G90
+        G38.2 Z-78 F300          ; Probe fast
+        G91
+        G0 Z2                    ; Back off 2mm
+        G38.2 Z-4 F10            ; Probe slow
+        G90
+        %global.probeWorkZ = mposz  ; Store MACHINE Z at probe touch
+        G53 G0 Z-1               ; Return to safe Z
+        G10 L20 P1 Z[offset + startZ]  ; Restore original work Z offset
+        G0 X[startX] Y[startY]   ; Return to start position
+        """
         self.current_macro = 'set_z'
         self.running = True
         self.cancel_flag = False
 
-        steps = [
-            ('Save position', 'Saving current XY position'),
-            ('Raise Z', f'G53 G0 Z{SAFE_Z}'),
-            ('Probe fast', f'G38.2 Z-{PROBE_DISTANCE} F{PROBE_FEED_FAST}'),
-            ('Back off', f'G91 G0 Z{PROBE_BACKOFF}'),
-            ('Probe slow', f'G38.2 Z-{PROBE_BACKOFF + 2} F{PROBE_FEED_SLOW}'),
-            ('Store probe Z', 'Recording work Z at probe'),
-            ('Restore position', 'Returning to saved XY'),
-        ]
-
-        self.total_steps = len(steps)
-        saved_x = self.grbl.status.mpos['x']
-        saved_y = self.grbl.status.mpos['y']
-
         try:
-            for i, (name, cmd) in enumerate(steps):
-                if self.cancel_flag:
-                    break
+            # Save start position (work coordinates)
+            start_x = self.grbl.status.wpos['x']
+            start_y = self.grbl.status.wpos['y']
+            start_z = self.grbl.status.wpos['z']
+            await self._log(f'Saved start: X{start_x:.3f} Y{start_y:.3f} Z{start_z:.3f}')
 
-                self.current_step = i + 1
-                await self._report_step(name, cmd)
+            # Raise to safe Z (machine coords)
+            await self._send_and_log('G53 G0 Z-1')
+            await self._wait_idle()
 
-                if i == 0:  # Save position
-                    saved_x = self.grbl.status.mpos['x']
-                    saved_y = self.grbl.status.mpos['y']
+            # Calculate offset (how much we moved in work coords)
+            offset = self.grbl.status.wpos['z'] - start_z
+            await self._log(f'Z offset from move: {offset:.3f}')
 
-                elif i == 1:  # Raise Z
-                    await self.grbl.send_command(f'G53 G0 Z{SAFE_Z}')
-                    await asyncio.sleep(2)  # Wait for move
+            # Temporarily set work Z to -1
+            await self._send_and_log('G10 L20 P1 Z-1')
 
-                elif i == 2:  # Probe fast
-                    await self.grbl.send_command(f'G38.2 Z-{PROBE_DISTANCE} F{PROBE_FEED_FAST}')
-                    await asyncio.sleep(3)
+            # Go to G28 position (probe location)
+            await self._send_and_log('G28')
+            await self._wait_idle()
 
-                elif i == 3:  # Back off
-                    await self.grbl.send_command('G91')
-                    await self.grbl.send_command(f'G0 Z{PROBE_BACKOFF}')
-                    await self.grbl.send_command('G90')
-                    await asyncio.sleep(1)
+            # Probe fast
+            await self._send_and_log('G90')
+            await self._send_and_log('G38.2 Z-78 F300')
+            await self._wait_idle()
 
-                elif i == 4:  # Probe slow
-                    await self.grbl.send_command('G91')
-                    await self.grbl.send_command(f'G38.2 Z-{PROBE_BACKOFF + 2} F{PROBE_FEED_SLOW}')
-                    await self.grbl.send_command('G90')
-                    await asyncio.sleep(2)
+            # Back off 2mm
+            await self._send_and_log('G91')
+            await self._send_and_log('G0 Z2')
+            await self._wait_idle()
 
-                elif i == 5:  # Store probe Z
-                    self.probe_work_z = self.grbl.status.wpos['z']
-                    self.set_z_done = True
+            # Probe slow
+            await self._send_and_log('G38.2 Z-4 F10')
+            await self._wait_idle()
+            await self._send_and_log('G90')
 
-                elif i == 6:  # Restore
-                    await self.grbl.send_command(f'G53 G0 Z{SAFE_Z}')
-                    await asyncio.sleep(2)
-                    await self.grbl.send_command(f'G53 G0 X{saved_x:.3f} Y{saved_y:.3f}')
-                    await asyncio.sleep(2)
+            # Store MACHINE Z at probe touch
+            self.probe_work_z = self.grbl.status.mpos['z']
+            self.set_z_done = True
+            await self._log(f'Stored probeWorkZ = {self.probe_work_z:.3f} (machine)')
 
-            if not self.cancel_flag:
-                await self._report_done()
+            # Return to safe Z
+            await self._send_and_log('G53 G0 Z-1')
+            await self._wait_idle()
+
+            # Restore original work Z offset
+            restore_z = offset + start_z
+            await self._send_and_log(f'G10 L20 P1 Z{restore_z:.3f}')
+
+            # Return to start position (work coords)
+            await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
+            await self._wait_idle()
+
+            await self._log('=== SET_Z COMPLETE ===')
+            await self._report_done()
 
         except Exception as e:
+            await self._log(f'SET_Z ERROR: {e}')
             await self._report_error(str(e))
         finally:
             self.running = False
@@ -691,8 +711,33 @@ class MacroEngine:
         finally:
             self.running = False
 
+    async def _log(self, msg: str):
+        """Log message to clients (shows in debug console)."""
+        if self.broadcast_callback:
+            await self.broadcast_callback({
+                'type': 'macro_log',
+                'name': self.current_macro,
+                'message': msg,
+            })
+
+    async def _send_and_log(self, gcode: str):
+        """Send G-code command and log it."""
+        await self._log(f'> {gcode}')
+        await self.grbl.send_command(gcode)
+
+    async def _wait_idle(self, timeout: float = 30.0):
+        """Wait for machine to reach Idle state."""
+        start = time.time()
+        while time.time() - start < timeout:
+            if self.cancel_flag:
+                raise Exception('Macro cancelled')
+            if self.grbl.status.state == 'Idle':
+                return
+            await asyncio.sleep(0.1)
+        raise Exception(f'Timeout waiting for Idle (stuck in {self.grbl.status.state})')
+
     async def _report_step(self, name: str, cmd: str, waiting: bool = False):
-        """Report macro step to clients."""
+        """Report macro step to clients (unused - kept for tool_change)."""
         if self.broadcast_callback:
             await self.broadcast_callback({
                 'type': 'macro_status',
@@ -767,6 +812,13 @@ class GrblServer:
         """Handle WebSocket client connection."""
         self.clients.add(websocket)
         print(f'[WS] Client connected ({len(self.clients)} total)')
+
+        # Send current connection status to new client
+        if self.grbl.connected:
+            await websocket.send(json.dumps({
+                'type': 'connected',
+                'port': self.grbl.port
+            }))
 
         try:
             async for message in websocket:
