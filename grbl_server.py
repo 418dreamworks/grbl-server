@@ -222,7 +222,7 @@ class GrblConnection:
             self._parse_probe(line)
             return
 
-        # Settings: $N=value
+        # Settings: $N=value (already broadcast via serial_read above)
         if line.startswith('$') and '=' in line:
             key, value = line.split('=', 1)
             self.settings[key] = value
@@ -532,82 +532,70 @@ class MacroEngine:
 
     async def run_set_z(self):
         """
-        Run the SetZ macro - matches original CNCjs macro:
-
-        ; SET_Z - Probe and store Z offset for TOOL_CHANGE
-        %startX = posx
-        %startY = posy
-        %startZ = posz
-        G53 G0 Z-1               ; Raise to safe Z (machine)
-        %offset = posz - startZ  ; Calculate offset we moved
-        G10 L20 P1 Z-1           ; Temporarily set work Z to -1
-        G28                      ; Go to G28 position (probe location)
-        G90
-        G38.2 Z-78 F300          ; Probe fast
-        G91
-        G0 Z2                    ; Back off 2mm
-        G38.2 Z-4 F10            ; Probe slow
-        G90
-        %global.probeWorkZ = mposz  ; Store MACHINE Z at probe touch
-        G53 G0 Z-1               ; Return to safe Z
-        G10 L20 P1 Z[offset + startZ]  ; Restore original work Z offset
-        G0 X[startX] Y[startY]   ; Return to start position
+        Run the SetZ macro - exact CNCjs commands.
+        %wait = G4 P0.5
         """
         self.current_macro = 'set_z'
         self.running = True
         self.cancel_flag = False
 
         try:
-            # Save start position (work coordinates)
+            # %startX = posx, %startY = posy, %startZ = posz
             start_x = self.grbl.status.wpos['x']
             start_y = self.grbl.status.wpos['y']
             start_z = self.grbl.status.wpos['z']
-            await self._log(f'Saved start: X{start_x:.3f} Y{start_y:.3f} Z{start_z:.3f}')
+            await self._log(f'start: X{start_x:.3f} Y{start_y:.3f} Z{start_z:.3f}')
 
-            # Raise to safe Z (machine coords)
+            # G53 G0 Z-1
             await self._send_and_log('G53 G0 Z-1')
             await self._wait_idle()
 
-            # Calculate offset (how much we moved in work coords)
+            # %offset = posz - startZ
             offset = self.grbl.status.wpos['z'] - start_z
-            await self._log(f'Z offset from move: {offset:.3f}')
+            await self._log(f'offset: {offset:.3f}')
 
-            # Temporarily set work Z to -1
+            # G10 L20 P1 Z-1
             await self._send_and_log('G10 L20 P1 Z-1')
 
-            # Go to G28 position (probe location)
+            # G28
             await self._send_and_log('G28')
             await self._wait_idle()
 
-            # Probe fast
+            # G90
             await self._send_and_log('G90')
+
+            # G38.2 Z-78 F300
             await self._send_and_log('G38.2 Z-78 F300')
             await self._wait_idle()
 
-            # Back off 2mm
+            # G91
             await self._send_and_log('G91')
+
+            # G0 Z2
             await self._send_and_log('G0 Z2')
             await self._wait_idle()
 
-            # Probe slow
+            # G38.2 Z-4 F10
             await self._send_and_log('G38.2 Z-4 F10')
             await self._wait_idle()
+
+            # G90
             await self._send_and_log('G90')
 
-            # Store MACHINE Z at probe touch
+            # %global.probeWorkZ = mposz
             self.probe_work_z = self.grbl.status.mpos['z']
             self.set_z_done = True
-            await self._log(f'Stored probeWorkZ = {self.probe_work_z:.3f} (machine)')
+            await self._log(f'probeWorkZ = {self.probe_work_z:.3f} (machine)')
 
-            # Return to safe Z
+            # G53 G0 Z-1
             await self._send_and_log('G53 G0 Z-1')
             await self._wait_idle()
 
-            # Restore original work Z offset
+            # G10 L20 P1 Z[offset + startZ]
             restore_z = offset + start_z
             await self._send_and_log(f'G10 L20 P1 Z{restore_z:.3f}')
 
-            # Return to start position (work coords)
+            # G0 X[startX] Y[startY]
             await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
             await self._wait_idle()
 
