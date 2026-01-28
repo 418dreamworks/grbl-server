@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CNC Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="http://192.168.68.105:8000/socket.io/socket.io.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+            background: #1a1a1a;
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 2fr;
+            gap: 20px;
+        }
+        h2 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+            text-align: center;
+        }
+        .section { margin-bottom: 20px; }
+        .row { display: flex; gap: 8px; margin-bottom: 8px; }
+        button {
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 12px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            min-width: 70px;
+        }
+        button:hover { background: #444; }
+        button:active { background: #0066cc; }
+        button .key { display: block; font-size: 10px; color: #666; margin-top: 4px; }
+
+        /* Color coding */
+        .machine-ctrl button { background: #3a3a3a; border-color: #5a5a5a; }
+        .z-buttons button, .work-zero button, .xy-grid button { flex: 1; min-height: 65px; }
+        .z-buttons button { background: #2a4a2a; border-color: #3a6a3a; }
+        .work-zero button { background: #4a2a2a; border-color: #6a3a3a; }
+        .xy-grid button { background: #2a2a4a; border-color: #3a3a6a; padding: 15px; }
+        .xy-grid button.work-zero { background: #4a2a2a; border-color: #6a3a3a; }
+        .tool-buttons button { background: #4a4a2a; border-color: #6a6a3a; }
+        .job-ctrl button { background: #2a4a4a; border-color: #3a6a6a; }
+        .job-ctrl button.stop { background: #6a2a2a; border-color: #8a3a3a; }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .xy-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .jog-grid { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; }
+        .jog-grid button { padding: 12px 20px; font-size: 14px; }
+        .step-selector .step-label, .spindle-ctrl .step-label { font-size: 12px; color: #888; margin-bottom: 4px; text-align: center; }
+        .step-selector .step-btn { padding: 6px 10px; font-size: 12px; flex: 1; text-align: center; }
+        .step-selector .step-btn.active { background: #4a6a4a; border-color: #6a8a6a; }
+        .spindle-on { background: #2a4a2a !important; border-color: #3a6a3a !important; }
+        .spindle-off { background: #4a2a2a !important; border-color: #6a3a3a !important; }
+        .spindle-speed-btn { padding: 2px 8px !important; min-width: 30px !important; font-size: 10px !important; }
+
+        .pos {
+            font-family: monospace;
+            font-size: 16px;
+            padding: 15px;
+            background: #222;
+            border-radius: 4px;
+            grid-column: 1 / -1;
+        }
+        .pos > div > div:first-child > span { margin-right: 8px; }
+        .pos .label { color: #666; }
+        .zero-btn {
+            padding: 2px 0;
+            width: 28px;
+            min-width: 28px;
+            max-width: 28px;
+            font-size: 11px;
+            margin-left: 2px;
+            background: #3a3a3a;
+            border-color: #555;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        .zero-btn:hover { background: #4a4a4a; }
+
+        .left-col { display: flex; flex-direction: column; justify-content: space-between; }
+        .right-col { display: flex; flex-direction: column; }
+
+
+        .camera {
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: #111;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #444;
+        }
+        .camera img { width: 100%; height: 100%; object-fit: contain; }
+
+        .debug-console {
+            grid-column: 1 / -1;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .debug-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #222;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+        }
+        .debug-header:hover { background: #2a2a2a; }
+        .debug-content {
+            height: 150px;
+            overflow-y: auto;
+            padding: 8px 12px;
+            display: none;
+        }
+        .debug-content.open { display: block; }
+        .debug-line { color: #0f0; margin: 2px 0; white-space: pre-wrap; word-break: break-all; }
+        .debug-line.sent { color: #ff0; }
+        .debug-line.error { color: #f55; }
+        .debug-line.info { color: #5af; }
+
+        .status-bar {
+            grid-column: 1 / -1;
+            background: #222;
+            border-radius: 4px;
+            padding: 12px 15px;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .machine-state {
+            font-weight: bold;
+            font-size: 14px;
+            padding: 4px 12px;
+            border-radius: 3px;
+            background: #4a2a2a;
+        }
+        .machine-state.idle { background: #2a4a2a; }
+        .machine-state.run { background: #2a4a4a; }
+        .machine-state.hold { background: #4a4a2a; }
+        .machine-state.alarm { background: #6a2a2a; }
+        .machine-state.disconnected { background: #4a2a2a; }
+        .file-name { color: #888; font-size: 13px; }
+        .progress { font-family: monospace; color: #888; }
+        .progress-bar {
+            height: 4px;
+            background: transparent;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: #4a9a4a;
+            transition: width 0.3s;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.open { display: flex; }
+        .modal-content {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            min-width: 300px;
+        }
+        .modal h3 { margin: 0 0 15px 0; font-size: 16px; }
+        .modal-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        .modal-row label { width: 30px; color: #888; }
+        .modal-row input {
+            flex: 1;
+            padding: 8px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #fff;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 15px; }
+        .modal-buttons button { flex: 1; }
+        .pos .label.clickable { cursor: pointer; text-decoration: underline; }
+        .pos .label.clickable:hover { color: #aaa; }
+        .unit { color: #888; margin-left: 10px; }
+        .unit.clickable { cursor: pointer; text-decoration: underline; }
+        .unit.clickable:hover { color: #aaa; }
+        .pos-buttons button {
+            padding: 6px 10px;
+            font-size: 12px;
+            min-width: auto;
+        }
+        .pos-buttons button .key {
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Status Bar (full width) -->
+    <div class="status-bar">
+        <div class="status-row">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span class="machine-state" id="machineState">DISCONNECTED</span>
+                <span class="file-name" id="fileName">No file loaded</span>
+                <span class="progress" id="progress">--</span>
+            </div>
+            <div class="btn-container" style="display: flex; flex-direction: column; gap: 4px; width: 468px;">
+                <div id="currentLine" style="display:none;">--</div>
+                <div style="display: flex; gap: 16px;">
+                <div class="job-ctrl" style="display: flex; gap: 8px; width: 50%;">
+                    <button id="btnRun" style="flex: 1; background: #2a4a2a; border-color: #3a6a3a;" onclick="jobStart()">Run</button>
+                    <button id="btnPause" style="flex: 1; background: #4a4a2a; border-color: #6a6a3a;" onclick="jobPause()">Pause</button>
+                    <button id="btnStop" style="flex: 1; background: #4a2a2a; border-color: #6a3a3a;" onclick="jobStop()">Stop</button>
+                </div>
+                <div class="machine-ctrl" style="display: flex; gap: 8px; width: 50%;">
+                    <button id="btnUnlock" style="flex: 1;" onclick="unlock()">Unlock</button>
+                    <button id="btnReset" style="flex: 1;" onclick="reset()">Reset</button>
+                    <button id="btnHome" style="flex: 1;" onclick="runMacro('HOMING')">Home</button>
+                </div>
+                </div>
+            </div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <!-- Position Display (full width) -->
+    <div class="pos">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <div>
+                <span class="label clickable" onclick="openWorkModal()" style="display:inline-block;width:40px;">Work:</span>
+                <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HX')" title="Home X">X:</span> <span id="workX" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 X0')">⊙0</button></span>
+                <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HY')" title="Home Y">Y:</span> <span id="workY" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 Y0')">⊙0</button></span>
+                <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HZ')" title="Home Z">Z:</span> <span id="workZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="setWorkZAndProbe(0)">⊙0</button></span>
+                <span><span style="color: #fc0; cursor:pointer;" onclick="homeA()" title="Home A">A:</span> <span id="workA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">⊙0</button></span>
+                <span class="unit clickable" onclick="toggleUnits()" id="unitWork">mm</span>
+            </div>
+            <span id="spindleRPM" style="font-size: 20px; font-weight: bold; white-space: nowrap;"><span style="display:inline-block;width:50px;text-align:right;">--</span> <span style="display:inline-block;width:55px;">RPM</span></span>
+            <div style="display: flex; gap: 2px; align-items: center;">
+                <button onclick="spindleOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
+                <button onclick="spindleOverride(-1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-1%</button>
+                <span id="spindleOverride" onclick="spindleOverride(0)" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to reset to 100%">100%</span>
+                <button onclick="spindleOverride(1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+1%</button>
+                <button onclick="spindleOverride(10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+10%</button>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <span class="label" style="display:inline-block;width:40px;">Mach:</span>
+                <span><span style="color: #fc0;">X:</span> <span id="machX" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HX')">→0</button></span>
+                <span><span style="color: #fc0;">Y:</span> <span id="machY" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HY')">→0</button></span>
+                <span><span style="color: #fc0;">Z:</span> <span id="machZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HZ')">→0</button></span>
+                <span><span style="color: #fc0;">A:</span> <span id="machA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">→0</button></span>
+                <span class="unit clickable" onclick="toggleUnits()" id="unitMach">mm</span>
+            </div>
+            <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap;"><span style="display:inline-block;width:50px;text-align:right;">0</span> <span style="display:inline-block;width:55px;">mm/min</span></span>
+            <div style="display: flex; gap: 2px; align-items: center;">
+                <button onclick="feedOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
+                <button onclick="feedOverride(-1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-1%</button>
+                <span id="feedRate" onclick="feedOverride(0)" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to reset to 100%">100%</span>
+                <button onclick="feedOverride(1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+1%</button>
+                <button onclick="feedOverride(10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+10%</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Left Column -->
+    <div class="left-col">
+        <div class="section">
+            <h2>RAPID</h2>
+            <div class="xy-grid">
+                <button onclick="gotoXY(workMaxX-MARGIN, MARGIN)">↖</button>
+                <button onclick="gotoXY(workMaxX/2, MARGIN)">↑</button>
+                <button onclick="gotoXY(MARGIN, MARGIN)">↗</button>
+                <button onclick="gotoXY(workMaxX-MARGIN, workMaxY/2)">←</button>
+                <button onclick="gotoXY(workMaxX/2, workMaxY/2)">●</button>
+                <button onclick="gotoXY(MARGIN, workMaxY/2)">→</button>
+                <button onclick="gotoXY(workMaxX-MARGIN, workMaxY-MARGIN)">↙</button>
+                <button onclick="gotoXY(workMaxX/2, workMaxY-MARGIN)">↓</button>
+                <button onclick="gotoXY(MARGIN, workMaxY-MARGIN)">↘</button>
+            </div>
+            <div class="xy-grid" style="margin-top: 8px;">
+                <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 X0 Y0')">X0 Y0</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z0')">Z0</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z10')">Z10</button>
+            </div>
+        </div>
+        <div class="section" style="margin-top: 8px; flex: 1; display: flex; flex-direction: column;">
+            <h2>JOG</h2>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; flex: 1;">
+                <button onclick="jog('X', 1)" style="font-size:11px; min-width:0; min-height:0;">X+<span class="key">[→]</span></button>
+                <button onclick="jog('Y', 1)" style="font-size:11px; min-width:0; min-height:0;">Y+<span class="key">[↑]</span></button>
+                <button onclick="jog('Z', 1)" style="font-size:11px; min-width:0; min-height:0;">Z+<span class="key">[Fn↑]</span></button>
+                <button onclick="jog('A', 1)" style="font-size:11px; min-width:0; min-height:0;">A+<span class="key">[Fn→]</span></button>
+                <button onclick="jog('X', -1)" style="font-size:11px; min-width:0; min-height:0;">X-<span class="key">[←]</span></button>
+                <button onclick="jog('Y', -1)" style="font-size:11px; min-width:0; min-height:0;">Y-<span class="key">[↓]</span></button>
+                <button onclick="jog('Z', -1)" style="font-size:11px; min-width:0; min-height:0;">Z-<span class="key">[Fn↓]</span></button>
+                <button onclick="jog('A', -1)" style="font-size:11px; min-width:0; min-height:0;">A-<span class="key">[Fn←]</span></button>
+            </div>
+            <div class="step-selector" style="margin-top: 4px;">
+                <div class="step-label" id="stepLabel" style="display:flex;justify-content:space-between;font-size:10px;"><span style="color:#555">&lt;</span><span>Step (mm)</span><span style="color:#555">&gt;</span></div>
+                <div id="stepButtons" style="display: flex; gap: 3px;">
+                    <button class="step-btn" onclick="setStep(0.025, this)" style="padding:4px 6px; font-size:10px;">0.025</button>
+                    <button class="step-btn" onclick="setStep(0.25, this)" style="padding:4px 6px; font-size:10px;">0.25</button>
+                    <button class="step-btn active" onclick="setStep(2.5, this)" style="padding:4px 6px; font-size:10px;">2.5</button>
+                    <button class="step-btn" onclick="setStep(25, this)" style="padding:4px 6px; font-size:10px;">25</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle Column -->
+    <div class="mid-col">
+        <div class="section">
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <!-- Macros -->
+                <div class="tool-buttons" style="display: flex; gap: 8px;">
+                    <button style="flex: 1;" onclick="runMacro('TOOL_CHANGE')">Tool Change<span class="key">[5]</span></button>
+                </div>
+                <!-- GCode Input -->
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="gcodeInput" placeholder="G-code..."
+                           style="flex: 1; padding: 10px; background: #222; border: 1px solid #444;
+                                  border-radius: 4px; color: #fff; font-family: monospace; font-size: 14px;"
+                           onkeydown="if(event.key==='Enter'){sendGcodeInput();event.preventDefault();}">
+                    <button onclick="sendGcodeInput()" style="padding: 10px 16px;">Send</button>
+                </div>
+                <!-- Status -->
+                <div>
+                    <button id="debugInfo" style="width: 100%; padding: 12px; background: #3a3a3a; border-color: #555;">✓ Synced</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column - Camera/Visualizer -->
+    <div class="right-col">
+        <div class="section" style="flex: 1;">
+            <div class="camera" id="camera" style="height: 100%;">
+                <span>No camera feed</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug Console -->
+    <div class="debug-console">
+        <div class="debug-header">
+            <span onclick="toggleDebug()" style="flex:1;cursor:pointer;">Debug Console</span>
+            <button onclick="fetchMacroDebug(event)" style="padding:2px 8px;font-size:11px;margin-right:8px;">Vars</button>
+            <button onclick="copyDebugLog(event)" style="padding:2px 8px;font-size:11px;margin-right:8px;">Copy</button>
+            <span id="debugToggle" onclick="toggleDebug()" style="cursor:pointer;">▲</span>
+        </div>
+        <div class="debug-content open" id="debugContent">
+            <div id="debugLog"></div>
+        </div>
+    </div>
+
+    <!-- M0 Continue Overlay -->
+    <div id="continueOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;" onclick="if(event.target===this)hideContinue()">
+        <button onclick="resumeFromM0(); hideContinue();" style="padding: 30px 60px; font-size: 28px; background: #2a4a2a; border: 3px solid #3a6a3a; color: #fff; border-radius: 12px; cursor: pointer;">
+            CONTINUE<br><span style="font-size: 14px; color: #aaa;">Swap tool, then press to resume</span>
+        </button>
+    </div>
+
+    <!-- Tool Change Modal -->
+    <div class="modal" id="toolChangeModal" onclick="if(event.target===this)closeToolChangeModal()">
+        <div class="modal-content" style="min-width: 400px;">
+            <h3>Tool Change - Step <span id="tcStep">1</span>/<span id="tcTotal">10</span></h3>
+            <div id="tcDescription" style="color: #888; margin-bottom: 10px;">Raise Z to safe height</div>
+            <div id="tcCommand" style="font-family: monospace; font-size: 16px; background: #111; padding: 12px; border-radius: 4px; margin-bottom: 15px;">G53 G0 Z-1</div>
+            <div class="modal-buttons">
+                <button onclick="closeToolChangeModal()">Cancel</button>
+                <button id="tcSendBtn" onclick="toolChangeSend()" style="background:#2a4a2a;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div class="modal" id="confirmModal" onclick="if(event.target===this)confirmResolve(false)">
+        <div class="modal-content" style="min-width: 300px; text-align: center;">
+            <h3 id="confirmMsg">Confirm</h3>
+            <div class="modal-buttons">
+                <button onclick="confirmResolve(false)" style="background:#4a2a2a;">No</button>
+                <button onclick="confirmResolve(true)" style="background:#2a4a2a;">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Work Coordinate Modal -->
+    <div class="modal" id="workModal" onclick="if(event.target===this)closeWorkModal()">
+        <div class="modal-content">
+            <h3>Set Work Coordinates</h3>
+            <div class="modal-row">
+                <label>X</label>
+                <input type="number" id="modalX" step="0.001">
+            </div>
+            <div class="modal-row">
+                <label>Y</label>
+                <input type="number" id="modalY" step="0.001">
+            </div>
+            <div class="modal-row">
+                <label>Z</label>
+                <input type="number" id="modalZ" step="0.001">
+            </div>
+            <div class="modal-row">
+                <label>A</label>
+                <input type="number" id="modalA" step="0.001">
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeWorkModal()">Cancel</button>
+                <button onclick="applyWorkCoords()" style="background:#2a4a2a;">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // These get populated from GRBL settings ($130, $131, $132, $133, $30, $31)
+        let workMaxX = 400;  // $130 - X max travel
+        let workMaxY = 400;  // $131 - Y max travel
+        let workMaxZ = 100;  // $132 - Z max travel
+        let workMaxA = 99999;  // $133 - A max travel (degrees)
+        const MARGIN = 2;    // 2mm safety margin from limits
+        let spindleMaxRPM = 24000;  // $30 - Max spindle speed
+        let spindleMinRPM = 9000;   // $31 - Min spindle speed
+
+        // Track current machine position (raw mm, for soft limit checks)
+        let machPosX = 0, machPosY = 0, machPosZ = 0, machPosA = 0;
+        // Track pending position (where we'll be after all queued commands)
+        let pendingX = 0, pendingY = 0, pendingZ = 0, pendingA = 0;
+        let lastMachineState = '';
+        let pendingInitialized = false;  // Only sync once on first update
+
+        const SERIAL_PORT = '/dev/ttyACM0';
+        const CNCJS_HOST = 'http://192.168.68.105:8000';
+        const CAMERA_URL = 'http://192.168.68.105:8080/?action=stream';
+        const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IiIsIm5hbWUiOiJqb2ctcGFuZWwiLCJpYXQiOjE3NjkwNzQ4ODIsImV4cCI6MTgwMDYxMDg4Mn0._D6ixV1ITBO7kbrmjWqkgI_pOQQXEPgZFsznPMI5bfc';
+
+        let socket;
+        let connected = false;
+        let settingsBuffer = '';
+
+
+        function setConnected() {
+            if (!connected) {
+                connected = true;
+                console.log('CNCjs connection confirmed');
+            }
+        }
+
+        function connect() {
+            socket = io(CNCJS_HOST, {
+                reconnection: true,
+                reconnectionDelay: 1000,
+                query: { token: TOKEN }
+            });
+
+            socket.on('connect', () => {
+                console.log('Socket connected to CNCjs, socket.id:', socket.id);
+                document.getElementById('machineState').textContent = 'SOCKET OK';
+                document.getElementById('machineState').className = 'machine-state idle';
+                // Try to open the port - will join existing connection if already open
+                console.log('Opening serial port:', SERIAL_PORT);
+                socket.emit('open', SERIAL_PORT, { baudrate: 115200, controllerType: 'Grbl' }, (err) => {
+                    if (err) {
+                        console.log('Port open error:', err);
+                        // Even if open fails, the port might already be open and we can still send commands
+                        // Set connected to true anyway and try to interact
+                        connected = true;
+                        document.getElementById('machineState').textContent = 'CONNECTED (shared)';
+                        updateButtonStates();
+                        setTimeout(() => queryGrblSettings(), 500);
+                    } else {
+                        console.log('Port open callback - success');
+                        connected = true;
+                        document.getElementById('machineState').textContent = 'CONNECTED';
+                        document.getElementById('machineState').className = 'machine-state idle';
+                        updateButtonStates();
+                    }
+                });
+            });
+
+            socket.on('connect_error', (err) => {
+                console.log('Socket connect error:', err.message, err);
+                document.getElementById('machineState').textContent = 'ERROR: ' + err.message;
+            });
+
+            socket.on('error', (err) => {
+                console.log('Socket error:', err);
+            });
+
+            socket.on('serialport:list', (ports) => {
+                console.log('Available ports:', ports);
+            });
+
+
+            socket.on('serialport:open', (options) => {
+                console.log('serialport:open event:', options);
+                debugLog('PORT OPENED: ' + (options.port || JSON.stringify(options)), 'info');
+                connected = true;
+                setTimeout(() => queryGrblSettings(), 500);
+            });
+
+            // Listen for Grbl-specific events (CNCjs internal)
+            // Disable GRBL STATE logging - too noisy
+            socket.on('Grbl:state', (state) => {
+                // Only log if motion mode changes (not every update)
+            });
+
+            socket.on('Grbl:raw', (data) => {
+                // Skip status reports (start with <) - handled by serialport:read
+                if (typeof data === 'string' && data.startsWith('<')) return;
+                debugLog('< ' + data);
+            });
+
+            socket.on('serialport:read', (...args) => {
+                // Figure out what format CNCjs is sending
+                let data = '';
+                if (typeof args[0] === 'string' && args.length === 1) {
+                    data = args[0];  // Just data
+                } else if (typeof args[1] === 'string') {
+                    data = args[1];  // port, data
+                } else if (args[0]?.data) {
+                    data = args[0].data;  // {port, data} object
+                } else {
+                    console.log('serialport:read unknown format:', args);
+                    return;
+                }
+                const lines = data.split('\n');
+                lines.forEach(line => {
+                    line = line.trim();
+                    if (!line || line.startsWith('<')) return;
+                    // Parse PRB (probe) results specially
+                    const prbMatch = line.match(/\[PRB:([^:]+):(\d)\]/);
+                    if (prbMatch) {
+                        const coords = prbMatch[1].split(',');
+                        const success = prbMatch[2] === '1';
+                        debugLog('★ PROBE ' + (success ? 'HIT' : 'MISS') +
+                            ' X=' + coords[0] + ' Y=' + coords[1] + ' Z=' + coords[2] +
+                            (coords[3] ? ' A=' + coords[3] : ''), 'info');
+                    } else if (line !== 'ok') {
+                        debugLog('< ' + line);
+                    }
+                });
+                parseGrblSettings(data);
+            });
+
+            // CNCjs emits controller:settings (type, settings) and Grbl:settings (settings)
+            // Settings are nested: settings.settings.$130
+            socket.on('controller:settings', (type, data) => {
+                console.log('controller:settings received', type, data);
+                const s = data?.settings || data;
+                if (s && s.$130) workMaxX = parseFloat(s.$130);
+                if (s && s.$131) workMaxY = parseFloat(s.$131);
+                if (s && s.$132) workMaxZ = parseFloat(s.$132);
+                if (s && s.$30) spindleMaxRPM = Math.floor(parseFloat(s.$30) / 1000) * 1000;
+                if (s && s.$31) spindleMinRPM = Math.ceil(parseFloat(s.$31) / 1000) * 1000;
+                document.getElementById('debugInfo').textContent = `$130: ${workMaxX} | $131: ${workMaxY} | $132: ${workMaxZ}`;
+                console.log(`GRBL settings: Work=${workMaxX}x${workMaxY}x${workMaxZ}mm`);
+            });
+
+            socket.on('Grbl:settings', (data) => {
+                console.log('Grbl:settings received', data);
+                const s = data?.settings || data;
+                if (s && s.$130) workMaxX = parseFloat(s.$130);
+                if (s && s.$131) workMaxY = parseFloat(s.$131);
+                if (s && s.$132) workMaxZ = parseFloat(s.$132);
+                document.getElementById('debugInfo').textContent = `$130: ${workMaxX} | $131: ${workMaxY} | $132: ${workMaxZ}`;
+            });
+
+            socket.on('serialport:close', () => {
+                connected = false;
+                document.getElementById('machineState').textContent = 'DISCONNECTED';
+                document.getElementById('machineState').className = 'machine-state disconnected';
+            });
+
+
+            socket.on('controller:state', (type, state) => {
+                setConnected();
+                if (state.status?.wpos) {
+                    const factor = currentUnit === 'in' ? 1/25.4 : 1;
+                    const decimals = 3;
+                    document.getElementById('workX').textContent = (parseFloat(state.status.wpos.x) * factor).toFixed(decimals);
+                    document.getElementById('workY').textContent = (parseFloat(state.status.wpos.y) * factor).toFixed(decimals);
+                    document.getElementById('workZ').textContent = (parseFloat(state.status.wpos.z) * factor).toFixed(decimals);
+                    if (state.status.wpos.a !== undefined) {
+                        document.getElementById('workA').textContent = parseFloat(state.status.wpos.a).toFixed(3);
+                    }
+                }
+                if (state.status?.mpos) {
+                    // Store raw mm values for soft limit checks
+                    machPosX = parseFloat(state.status.mpos.x);
+                    machPosY = parseFloat(state.status.mpos.y);
+                    machPosZ = parseFloat(state.status.mpos.z);
+                    if (state.status.mpos.a !== undefined) {
+                        machPosA = parseFloat(state.status.mpos.a);
+                    }
+
+                    // Sync pending position only on specific events:
+                    // 1. First update (initialize)
+                    // 2. After ALARM clears (unlock)
+                    // 3. After HOME completes
+                    // Never sync during normal jogging - we track our own commands
+                    const currentState = state.status?.activeState?.toUpperCase() || '';
+                    const needsSync = !pendingInitialized ||
+                                      (lastMachineState === 'ALARM' && currentState === 'IDLE') ||
+                                      (lastMachineState === 'HOME' && currentState === 'IDLE');
+
+                    if (needsSync) {
+                        console.log(`SYNC (${!pendingInitialized ? 'init' : lastMachineState + '→IDLE'}): actual=(${machPosX.toFixed(1)},${machPosY.toFixed(1)},${machPosZ.toFixed(1)},${machPosA.toFixed(1)})`);
+                        pendingX = machPosX;
+                        pendingY = machPosY;
+                        pendingZ = machPosZ;
+                        pendingA = machPosA;
+                        pendingInitialized = true;
+                    }
+                    lastMachineState = currentState;
+
+                    // When IDLE, always sync pending to actual position
+                    // This catches G28, manual moves, etc. that we didn't track
+                    const desyncX = Math.abs(pendingX - machPosX);
+                    const desyncY = Math.abs(pendingY - machPosY);
+                    const desyncZ = Math.abs(pendingZ - machPosZ);
+                    const desyncA = Math.abs(pendingA - machPosA);
+                    const maxDesync = Math.max(desyncX, desyncY, desyncZ, desyncA);
+                    const debugEl = document.getElementById('debugInfo');
+                    if (currentState === 'IDLE') {
+                        if (maxDesync > 0.1) {
+                            // Machine stopped at unexpected position - resync
+                            console.log(`AUTO-SYNC: was (${pendingX.toFixed(1)},${pendingY.toFixed(1)},${pendingZ.toFixed(1)}) now (${machPosX.toFixed(1)},${machPosY.toFixed(1)},${machPosZ.toFixed(1)})`);
+                            pendingX = machPosX;
+                            pendingY = machPosY;
+                            pendingZ = machPosZ;
+                            pendingA = machPosA;
+                        }
+                        debugEl.style.background = '#3a3a3a';
+                        debugEl.textContent = '✓ Synced';
+                    } else {
+                        debugEl.style.background = '#3a3a3a';
+                        debugEl.textContent = 'Moving...';
+                    }
+
+                    const factor = currentUnit === 'in' ? 1/25.4 : 1;
+                    const decimals = 3;
+                    document.getElementById('machX').textContent = (machPosX * factor).toFixed(decimals);
+                    document.getElementById('machY').textContent = (machPosY * factor).toFixed(decimals);
+                    document.getElementById('machZ').textContent = (machPosZ * factor).toFixed(decimals);
+                    if (state.status.mpos.a !== undefined) {
+                        document.getElementById('machA').textContent = parseFloat(state.status.mpos.a).toFixed(3);
+                    }
+                }
+                if (state.status?.ov) {
+                    // ov = [feed%, rapid%, spindle%]
+                    currentFeedOverride = state.status.ov[0];
+                    document.getElementById('feedRate').textContent = currentFeedOverride + '%';
+                    currentSpindleOverride = state.status.ov[2];
+                    document.getElementById('spindleOverride').textContent = currentSpindleOverride + '%';
+                }
+                // Check pin state for limit switches (Pn: field)
+                if (state.status?.pinState) {
+                    const pins = state.status.pinState;
+                    const axes = [];
+                    if (pins.includes('X')) axes.push('X');
+                    if (pins.includes('Y')) axes.push('Y');
+                    if (pins.includes('Z')) axes.push('Z');
+                    if (axes.length > 0) lastAlarmAxis = axes.join('+');
+                }
+
+                if (state.status?.activeState) {
+                    const stateEl = document.getElementById('machineState');
+                    const s = state.status.activeState.toUpperCase();
+                    stateEl.textContent = s;
+                    stateEl.className = 'machine-state ' + state.status.activeState.toLowerCase();
+                    // Show continue overlay ONLY on M0 hold during SET_Z/TOOL_CHANGE macros
+                    const overlay = document.getElementById('continueOverlay');
+                    if (s.startsWith('HOLD') && inM0Macro) {
+                        overlay.style.display = 'flex';
+                    } else {
+                        overlay.style.display = 'none';
+                        // Clear macro flag when leaving HOLD
+                        if (!s.startsWith('HOLD')) {
+                            inM0Macro = false;
+                        }
+                    }
+                }
+                // Track spindle speed from status if available (FS: field)
+                if (state.status?.spindle !== undefined) {
+                    lastSpindleSpeed = state.status.spindle;
+                    document.getElementById('spindleRPM').innerHTML = '<span style="display:inline-block;width:50px;text-align:right;">' + (state.status.spindle || 0) + '</span> <span style="display:inline-block;width:55px;">RPM</span>';
+                }
+                // Track feed rate (machine movement speed)
+                if (state.status?.feedrate !== undefined) {
+                    const feed = state.status.feedrate || 0;
+                    const unit = currentUnit === 'in' ? 'in' : 'mm';
+                    const displayFeed = currentUnit === 'in' ? Math.round(feed / 25.4) : Math.round(feed);
+                    document.getElementById('machineSpeed').innerHTML = '<span style="display:inline-block;width:50px;text-align:right;">' + displayFeed + '</span> <span style="display:inline-block;width:55px;">' + unit + '/min</span>';
+                }
+                updateButtonStates();
+            });
+
+            socket.on('sender:status', (data) => {
+                if (data.name) {
+                    document.getElementById('fileName').textContent = data.name;
+                }
+                if (data.total > 0) {
+                    const pct = ((data.sent / data.total) * 100).toFixed(1);
+                    document.getElementById('progress').textContent = `${data.sent}/${data.total} (${pct}%)`;
+                    document.getElementById('progressFill').style.width = pct + '%';
+                } else {
+                    document.getElementById('progress').textContent = '--';
+                    document.getElementById('progressFill').style.width = '0%';
+                }
+                // Update current line if available
+                if (data.line !== undefined) {
+                    document.getElementById('currentLine').textContent = `L${data.sent}: ${data.line}`;
+                    document.getElementById('gcodeInput').placeholder = `L${data.sent}: ${data.line}`;
+                }
+            });
+
+            // Capture workflow events for current line (persists on error)
+            socket.on('workflow:state', (state) => {
+                console.log('workflow:state', state);
+                workflowState = state;
+                updateButtonStates();  // Update buttons when workflow state changes
+            });
+
+            // Capture serialport write to show actual gcode being sent (with variables expanded)
+            socket.on('serialport:write', (...args) => {
+                let data = '';
+                let port = '';
+                let ctx = null;
+                if (typeof args[0] === 'string' && typeof args[1] === 'object' && args[1] !== null) {
+                    // Macro format: (gcode_string, context_object)
+                    data = args[0];
+                    ctx = args[1];
+                } else if (typeof args[0] === 'string' && typeof args[1] === 'string') {
+                    port = args[0];
+                    data = args[1];  // port, data
+                } else if (typeof args[0] === 'string' && args.length === 1) {
+                    data = args[0];  // Just data
+                } else if (args[0]?.data) {
+                    data = args[0].data;  // {port, data} object
+                    port = args[0].port || '';
+                } else {
+                    // Log unknown format to help debug
+                    console.log('serialport:write args:', args);
+                    debugLog('WRITE: ' + JSON.stringify(args), 'info');
+                    return;
+                }
+                const lines = data.split('\n');
+                lines.forEach(line => {
+                    line = line.trim();
+                    if (line && !line.startsWith('?')) {
+                        debugLog('> ' + line, 'sent');
+                        document.getElementById('gcodeInput').placeholder = line;
+                        document.getElementById('currentLine').textContent = line;
+                    }
+                });
+                // Show context from macro execution (posz, mposz, global vars)
+                if (ctx) {
+                    const parts = [];
+                    if (ctx.posz !== undefined) parts.push('posz=' + Number(ctx.posz).toFixed(3));
+                    if (ctx.mposz !== undefined) parts.push('mposz=' + Number(ctx.mposz).toFixed(3));
+                    if (ctx.posx !== undefined) parts.push('posx=' + Number(ctx.posx).toFixed(3));
+                    if (ctx.posy !== undefined) parts.push('posy=' + Number(ctx.posy).toFixed(3));
+                    if (ctx.global) {
+                        Object.keys(ctx.global).forEach(k => {
+                            const v = ctx.global[k];
+                            parts.push('global.' + k + '=' + (typeof v === 'number' ? v.toFixed(3) : v));
+                        });
+                    }
+                    if (parts.length > 0) {
+                        debugLog('  ctx: ' + parts.join(' | '), 'info');
+                    }
+                }
+            });
+
+            socket.on('disconnect', () => {
+                connected = false;
+                document.getElementById('machineState').textContent = 'DISCONNECTED';
+                document.getElementById('machineState').className = 'machine-state disconnected';
+                updateButtonStates();
+            });
+
+            // Listen for macro-related events
+            socket.on('task:start', (data) => {
+                debugLog('TASK START: ' + JSON.stringify(data), 'info');
+            });
+
+            socket.on('task:error', (err) => {
+                debugLog('TASK ERROR: ' + JSON.stringify(err), 'error');
+            });
+
+            socket.on('task:finish', (result) => {
+                debugLog('TASK FINISH: ' + JSON.stringify(result), 'info');
+            });
+
+            socket.on('macro:start', (data) => {
+                debugLog('MACRO START: ' + JSON.stringify(data), 'info');
+            });
+
+            socket.on('macro:stop', (data) => {
+                debugLog('MACRO STOP: ' + JSON.stringify(data), 'info');
+            });
+
+            // Try catching controller.print output
+            socket.on('message', (data) => {
+                debugLog('MESSAGE: ' + JSON.stringify(data), 'info');
+            });
+
+            socket.on('output', (data) => {
+                debugLog('OUTPUT: ' + JSON.stringify(data), 'info');
+            });
+
+            socket.on('feeder:status', (data) => {
+                // Log ALL feeder queue items (this is what CNCjs console shows)
+                if (data.queue && data.queue.length > 0) {
+                    data.queue.forEach(item => {
+                        const line = typeof item === 'string' ? item : (item.line || item.gcode || '');
+                        if (line) {
+                            debugLog('» ' + line, 'sent');  // Yellow - queued gcode
+                        }
+                    });
+                }
+            });
+
+            // Listen for gcode/console events that show expanded commands
+            socket.on('gcode', (data) => {
+                debugLog('GCODE: ' + JSON.stringify(data), 'info');
+            });
+
+            socket.on('macro:load', (data) => {
+                debugLog('MACRO LOAD: ' + JSON.stringify(data), 'info');
+            });
+
+            // Console output - this is what shows in CNCjs console
+            socket.on('serialport:console', (port, line) => {
+                debugLog('» ' + line, 'sent');
+            });
+
+            socket.on('console', (data) => {
+                const line = typeof data === 'string' ? data : (data.line || data.message || JSON.stringify(data));
+                debugLog('» ' + line, 'sent');
+            });
+
+            // Feeder events
+            socket.on('feeder:output', (data) => {
+                debugLog('» ' + data, 'sent');
+            });
+
+            socket.on('sender:load', (data) => {
+                debugLog('SENDER LOAD: ' + JSON.stringify(data), 'info');
+            });
+
+            // Catch-all event listener to discover which event has feeder output
+            const origOnevent = socket.onevent;
+            socket.onevent = function(packet) {
+                const args = packet.data || [];
+                const eventName = args[0];
+                // Skip noisy events we already handle
+                const skip = ['Grbl:state', 'controller:state', 'sender:status', 'serialport:read', 'serialport:write'];
+                if (!skip.includes(eventName)) {
+                    const payload = args.slice(1);
+                    if (payload.length > 0) {
+                        const str = JSON.stringify(payload).substring(0, 200);
+                        console.log('EVENT:', eventName, str);
+                        // Log events that might have feeder data
+                        if (eventName.includes('feeder') || eventName.includes('gcode') || eventName.includes('sender') || eventName.includes('console')) {
+                            debugLog('[' + eventName + '] ' + str, 'info');
+                        }
+                    }
+                }
+                origOnevent.call(this, packet);
+            };
+        }
+
+        // Debug console functions
+        function debugLog(msg, type = '') {
+            const log = document.getElementById('debugLog');
+            const line = document.createElement('div');
+            line.className = 'debug-line' + (type ? ' ' + type : '');
+            line.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+            log.appendChild(line);
+            // Keep last 200 lines
+            while (log.children.length > 200) {
+                log.removeChild(log.firstChild);
+            }
+            // Auto-scroll
+            const content = document.getElementById('debugContent');
+            content.scrollTop = content.scrollHeight;
+        }
+
+        function toggleDebug() {
+            const content = document.getElementById('debugContent');
+            const toggle = document.getElementById('debugToggle');
+            content.classList.toggle('open');
+            toggle.textContent = content.classList.contains('open') ? '▲' : '▼';
+        }
+
+        function copyDebugLog(e) {
+            e.stopPropagation();
+            const log = document.getElementById('debugLog');
+            const text = Array.from(log.children).map(el => el.textContent).join('\n');
+            const btn = e.target;
+
+            // Try modern clipboard API first, fallback to execCommand
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => btn.textContent = 'Copy', 1500);
+                }).catch(() => copyFallback(text, btn));
+            } else {
+                copyFallback(text, btn);
+            }
+        }
+
+        function copyFallback(text, btn) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 1500);
+            } catch (err) {
+                btn.textContent = 'Failed';
+                setTimeout(() => btn.textContent = 'Copy', 1500);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function fetchMacroDebug(e) {
+            e.stopPropagation();
+            debugLog('Macro vars shown inline via ctx: lines', 'info');
+        }
+
+        function cmd(gcode) {
+            if (!connected) return;
+            socket.emit('command', SERIAL_PORT, 'gcode', gcode);
+        }
+
+        function sendGcodeInput() {
+            const input = document.getElementById('gcodeInput');
+            const gcode = input.value.trim();
+            if (gcode) {
+                cmd(gcode);
+                input.value = '';
+            }
+            input.focus();
+        }
+
+        function queryGrblSettings() {
+            console.log('Querying GRBL settings...');
+            settingsBuffer = '';
+            cmd('$$');
+        }
+
+        let lastSettingsStr = '';
+        function parseGrblSettings(data) {
+            settingsBuffer += data;
+            const lines = settingsBuffer.split('\n');
+            let found = false;
+            lines.forEach(line => {
+                const match = line.match(/\$(\d+)=([0-9.]+)/);
+                if (match) {
+                    found = true;
+                    const param = parseInt(match[1]);
+                    const value = parseFloat(match[2]);
+                    switch (param) {
+                        case 30: spindleMaxRPM = Math.floor(value / 1000) * 1000; break;
+                        case 31: spindleMinRPM = Math.ceil(value / 1000) * 1000; break;
+                        case 130: workMaxX = value; break;
+                        case 131: workMaxY = value; break;
+                        case 132: workMaxZ = value; break;
+                        case 133: workMaxA = value; break;
+                    }
+                }
+            });
+            if (found) {
+                const str = `${workMaxX}x${workMaxY}x${workMaxZ} S${spindleMinRPM}-${spindleMaxRPM}`;
+                if (str !== lastSettingsStr) {
+                    lastSettingsStr = str;
+                    console.log(`GRBL: Work=${workMaxX}x${workMaxY}x${workMaxZ}mm, Spindle=${spindleMinRPM}-${spindleMaxRPM}RPM`);
+                    document.getElementById('debugInfo').textContent = `$130: ${workMaxX} | $131: ${workMaxY} | $132: ${workMaxZ}`;
+                }
+            }
+        }
+
+        // Soft limit check: machine coords are 0 at home, negative into work area
+        // Valid range: 0 to -workMax for X/Y/Z
+        // A axis is rotational - can be positive or negative, skip checking for now
+        function isWithinLimits(targetX, targetY, targetZ, targetA) {
+            if (targetX !== null && (targetX > 0.01 || targetX < -workMaxX)) return false;
+            if (targetY !== null && (targetY > 0.01 || targetY < -workMaxY)) return false;
+            if (targetZ !== null && (targetZ > 0.01 || targetZ < -workMaxZ)) return false;
+            // A axis: rotational, can be positive or negative - skip soft limit check
+            // (User will disable soft limits when using A axis code anyway)
+            return true;
+        }
+
+        function showBlocked(msg) {
+            const el = document.getElementById('debugInfo');
+            const orig = el.style.background;
+            el.style.background = '#6a2a2a';
+            el.textContent = msg;
+            setTimeout(() => {
+                el.style.background = orig;
+                el.textContent = `$130: ${workMaxX} | $131: ${workMaxY} | $132: ${workMaxZ}`;
+            }, 2000);
+        }
+
+        // Machine coords: 0,0 is home (back-right), negative values go left/forward
+        function gotoXY(x, y) {
+            const targetX = -x;
+            const targetY = -y;
+            console.log(`gotoXY: input=(${x},${y}) target=(${targetX.toFixed(1)},${targetY.toFixed(1)}) limits=(${workMaxX},${workMaxY})`);
+            if (!isWithinLimits(targetX, targetY, null)) {
+                showBlocked(`BLOCKED: X${targetX.toFixed(1)} Y${targetY.toFixed(1)}`);
+                return;
+            }
+            // Update pending position for absolute move
+            pendingX = targetX;
+            pendingY = targetY;
+            cmd(`G53 G0 X${targetX.toFixed(1)} Y${targetY.toFixed(1)}`);
+        }
+        function unlock() { socket.emit('command', SERIAL_PORT, 'unlock'); }
+        function reset() { socket.emit('command', SERIAL_PORT, 'reset'); }
+
+        let jogStep = 2.5;
+        let jogCounter = 0;
+        function jog(axis, dir) {
+            jogCounter++;
+            const dist = jogStep * dir;
+            const jogId = jogCounter;
+
+            // Calculate target position using PENDING position (accounts for queued commands)
+            let targetX = pendingX, targetY = pendingY, targetZ = pendingZ, targetA = pendingA;
+            if (axis === 'X') targetX += dist;
+            if (axis === 'Y') targetY += dist;
+            if (axis === 'Z') targetZ += dist;
+            if (axis === 'A') targetA += dist;
+
+            // Check limits for the axis being moved
+            const axisTarget = axis === 'X' ? targetX : axis === 'Y' ? targetY : axis === 'Z' ? targetZ : targetA;
+            const axisMax = axis === 'X' ? workMaxX : axis === 'Y' ? workMaxY : axis === 'Z' ? workMaxZ : workMaxA;
+            const axisOk = axisTarget <= 0.01 && axisTarget >= -axisMax;
+
+            const pendingVal = axis === 'X' ? pendingX : axis === 'Y' ? pendingY : axis === 'Z' ? pendingZ : pendingA;
+            console.log(`[JOG #${jogId}] ${axis}${dir > 0 ? '+' : '-'} step=${jogStep} pending=${pendingVal.toFixed(2)} target=${axisTarget.toFixed(2)} limit=[0 to -${axisMax}] ${axisOk ? 'OK' : 'FAIL'}`);
+
+            if (!isWithinLimits(targetX, targetY, targetZ, targetA)) {
+                console.log(`  RESULT: *** BLOCKED ***`);
+                showBlocked(`BLOCKED: ${axis}${dist > 0 ? '+' : ''}${dist} → ${axisTarget.toFixed(1)}`);
+                return;
+            }
+
+            // Update pending position - this IS the new position after this command
+            pendingX = targetX;
+            pendingY = targetY;
+            pendingZ = targetZ;
+            pendingA = targetA;
+            cmd(`G91 G0 ${axis}${dist}`);
+            cmd('G90');
+        }
+
+        function setStep(step, btn) {
+            jogStep = step;
+            document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        let showingCamera = true;
+        function toggleView() {
+            showingCamera = !showingCamera;
+            const cam = document.getElementById('camera');
+            const viz = document.getElementById('visualizer');
+            if (showingCamera) {
+                cam.style.display = 'flex';
+                viz.style.display = 'none';
+            } else {
+                cam.style.display = 'none';
+                viz.style.display = 'flex';
+            }
+        }
+
+        // Macro name to ID mapping (from CNCjs config)
+        const MACRO_IDS = {
+            'HOMING': 'c67d6c38-7ea3-4985-ac9f-ba3670e12912',
+            'Set_Z': 'a1b2c3d4-1111-2222-3333-444455556666',
+            'TOOL_CHANGE': 'b2c3d4e5-2222-3333-4444-555566667777',
+            'SURFACING': 'surf-0001-0002-0003-000000000001'
+        };
+        let setZDone = false;
+        let confirmCb = null;
+        function showConfirm(msg, cb) {
+            document.getElementById('confirmMsg').textContent = msg;
+            document.getElementById('confirmModal').classList.add('open');
+            confirmCb = cb;
+        }
+        function confirmResolve(yes) {
+            document.getElementById('confirmModal').classList.remove('open');
+            if (confirmCb) confirmCb(yes);
+            confirmCb = null;
+        }
+        function homeA() {
+            if (!connected) return;
+            showConfirm('Unplug A axis stepper, then click Yes', (yes) => {
+                if (!yes) return;
+                // Set A max rate and accel to max (stepper unplugged, just updating GRBL position)
+                cmd('$113=1000000');
+                cmd('$123=1000000');
+                // Relative move A to large negative so GRBL thinks we're deep in valid range
+                cmd('G91');
+                cmd('G0 A-40000');
+                cmd('G90');
+                // Wait for the fake move to complete, then prompt to plug back in
+                setTimeout(() => {
+                    showConfirm('Plug A axis stepper back in, then click Yes', (yes2) => {
+                        if (!yes2) return;
+                        // Restore normal A axis speed and accel
+                        cmd('$113=50');
+                        cmd('$123=20');
+                        // Zero work A
+                        cmd('G10 L20 P1 A0');
+                        debugLog('Home A complete: machine A reset, work A zeroed', 'info');
+                    });
+                }, 5000);
+            });
+        }
+
+        function setWorkZAndProbe(z) {
+            cmd('G10 L20 P1 Z' + z);
+            if (setZDone) {
+                showConfirm('SET_Z already done. Run probe again?', (yes) => {
+                    if (yes) setTimeout(() => runMacro('Set_Z'), 500);
+                });
+            } else {
+                setTimeout(() => runMacro('Set_Z'), 500);
+            }
+        }
+        function runMacro(name) {
+            if (!connected) return;
+            if (name === 'TOOL_CHANGE' && !setZDone) {
+                alert('Run SET_Z first!');
+                return;
+            }
+            if (name === 'Set_Z') setZDone = true;
+            // Track M0-based macros so CONTINUE button only shows for these
+            if (name === 'Set_Z' || name === 'TOOL_CHANGE') {
+                inM0Macro = true;
+            }
+            debugLog('=== MACRO: ' + name + ' ===', 'info');
+            const id = MACRO_IDS[name] || name;
+            socket.emit('command', SERIAL_PORT, 'macro:run', id);
+        }
+
+        // Track spindle state for pause/resume
+        let lastSpindleSpeed = 15000;  // Default, will be updated from status
+        let spindleWasRunning = false;
+        let inM0Macro = false;  // Track if we're in SET_Z or TOOL_CHANGE macro
+        let workflowState = 'idle';  // Track workflow state (idle/running/paused) for gcode programs
+
+        function jobStart() {
+            // If spindle was stopped by pause, restart it first with delay
+            if (spindleWasRunning) {
+                console.log('Resuming spindle, waiting 5s...');
+                // Toggle spindle back on using same real-time command
+                socket.emit('write', SERIAL_PORT, String.fromCharCode(0x9E));
+                spindleWasRunning = false;
+                setTimeout(() => {
+                    console.log('Resuming feed');
+                    socket.emit('write', SERIAL_PORT, '~');
+                    socket.emit('command', SERIAL_PORT, 'gcode:resume');
+                }, 5000);
+            } else {
+                // Send ~ (GRBL cycle start) directly - works for both
+                // macro M0 hold and regular job pause
+                socket.emit('write', SERIAL_PORT, '~');
+                socket.emit('command', SERIAL_PORT, 'gcode:resume');
+            }
+        }
+        function jobPause() {
+            socket.emit('command', SERIAL_PORT, 'gcode:pause');
+            // Stop spindle using real-time command (0x9E) which works during feed hold
+            console.log('Pausing - stopping spindle (was at S' + lastSpindleSpeed + ')');
+            spindleWasRunning = true;
+            socket.emit('write', SERIAL_PORT, String.fromCharCode(0x9E));  // Spindle stop override
+        }
+        function resumeFromM0() {
+            console.log('resumeFromM0() called, connected=' + connected);
+            debugLog('CONTINUE: resuming from M0 hold', 'info');
+            // feeder:start unholds the feeder (preserves queue), writes ~, and calls next()
+            // gcode:resume does NOT work for macros — it resumes the workflow/sender,
+            // but macros use the feeder which has its own hold mechanism
+            socket.emit('command', SERIAL_PORT, 'feeder:start');
+            console.log('sent feeder:start');
+            inM0Macro = false;  // Clear flag after resuming
+        }
+        function hideContinue() {
+            document.getElementById('continueOverlay').style.display = 'none';
+        }
+        function jobStop() {
+            socket.emit('command', SERIAL_PORT, 'gcode:stop');
+            spindleWasRunning = false;
+            socket.emit('write', SERIAL_PORT, String.fromCharCode(0x9E));  // Spindle stop override
+        }
+
+        function updateButtonStates() {
+            if (!connected) {
+                // Disable everything when disconnected
+                document.getElementById('btnRun').disabled = true;
+                document.getElementById('btnPause').disabled = true;
+                document.getElementById('btnStop').disabled = true;
+                document.getElementById('btnUnlock').disabled = true;
+                document.getElementById('btnReset').disabled = true;
+                document.getElementById('btnHome').disabled = true;
+                document.querySelectorAll('.jog-btn').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = true);
+                return;
+            }
+
+            const state = lastMachineState;
+
+            // Run button: only works when HOLD (paused)
+            document.getElementById('btnRun').disabled = !state.startsWith('HOLD');
+
+            // Pause button: works when IDLE or RUN (can preemptively hold, or pause running job)
+            document.getElementById('btnPause').disabled = !(state === 'IDLE' || state === 'RUN');
+
+            // Stop button: only works when workflow is running (gcode program, not macros)
+            document.getElementById('btnStop').disabled = !(workflowState === 'running');
+
+            // Unlock button: only works when ALARM
+            document.getElementById('btnUnlock').disabled = !(state === 'ALARM');
+
+            // Reset button: always enabled when connected
+            document.getElementById('btnReset').disabled = false;
+
+            // Home button: only works when IDLE
+            document.getElementById('btnHome').disabled = !(state === 'IDLE');
+
+            // Jog buttons: only work when IDLE
+            const jogEnabled = (state === 'IDLE');
+            document.querySelectorAll('.jog-btn').forEach(btn => btn.disabled = !jogEnabled);
+
+            // Rapid/Goto buttons: only work when IDLE
+            document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = !jogEnabled);
+
+            // Macro buttons (SET_Z, Tool Change): only work when IDLE
+            document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => {
+                if (!btn.id || btn.id !== 'btnHome') {  // Skip Home button (already handled)
+                    btn.disabled = !jogEnabled;
+                }
+            });
+        }
+
+        // Feed override - GRBL real-time commands
+        let currentFeedOverride = 100;
+        function feedOverride(delta) {
+            if (!connected) return;
+            let byte;
+            if (delta === 0) {
+                byte = 0x90; // 100%
+                currentFeedOverride = 100;
+            } else if (delta === 10) {
+                byte = 0x91; // +10%
+                currentFeedOverride = Math.min(200, currentFeedOverride + 10);
+            } else if (delta === -10) {
+                byte = 0x92; // -10%
+                currentFeedOverride = Math.max(10, currentFeedOverride - 10);
+            } else if (delta === 1) {
+                byte = 0x93; // +1%
+                currentFeedOverride = Math.min(200, currentFeedOverride + 1);
+            } else if (delta === -1) {
+                byte = 0x94; // -1%
+                currentFeedOverride = Math.max(10, currentFeedOverride - 1);
+            }
+            if (byte) socket.emit('write', SERIAL_PORT, String.fromCharCode(byte));
+            document.getElementById('feedRate').textContent = currentFeedOverride + '%';
+        }
+
+        // Spindle override - GRBL real-time commands
+        let currentSpindleOverride = 100;
+        function spindleOverride(delta) {
+            if (!connected) return;
+            let byte;
+            if (delta === 0) {
+                byte = 0x99; // 100%
+                currentSpindleOverride = 100;
+            } else if (delta === 10) {
+                byte = 0x9A; // +10%
+                currentSpindleOverride = Math.min(200, currentSpindleOverride + 10);
+            } else if (delta === -10) {
+                byte = 0x9B; // -10%
+                currentSpindleOverride = Math.max(10, currentSpindleOverride - 10);
+            } else if (delta === 1) {
+                byte = 0x9C; // +1%
+                currentSpindleOverride = Math.min(200, currentSpindleOverride + 1);
+            } else if (delta === -1) {
+                byte = 0x9D; // -1%
+                currentSpindleOverride = Math.max(10, currentSpindleOverride - 1);
+            }
+            if (byte) socket.emit('write', SERIAL_PORT, String.fromCharCode(byte));
+            document.getElementById('spindleOverride').textContent = currentSpindleOverride + '%';
+        }
+
+        let currentUnit = 'mm';
+        const mmSteps = [0.025, 0.25, 2.5, 25];
+        const inSteps = [0.001, 0.01, 0.1, 1];
+
+        function toggleUnits() {
+            if (currentUnit === 'mm') {
+                currentUnit = 'in';
+                cmd('G20'); // Switch to inches
+            } else {
+                currentUnit = 'mm';
+                cmd('G21'); // Switch to mm
+            }
+            document.getElementById('unitWork').textContent = currentUnit;
+            document.getElementById('unitMach').textContent = currentUnit;
+            updateStepButtons();
+        }
+
+        function updateStepButtons() {
+            const steps = currentUnit === 'mm' ? mmSteps : inSteps;
+            const container = document.getElementById('stepButtons');
+            document.getElementById('stepLabel').innerHTML = '<span style="color:#555">&lt;</span><span>Step (' + currentUnit + ')</span><span style="color:#555">&gt;</span>';
+            container.innerHTML = '';
+            steps.forEach((step, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'step-btn';
+                btn.textContent = step;
+                btn.onclick = function() { setStep(step, this); };
+                if ((currentUnit === 'mm' && step === 2.5) || (currentUnit === 'in' && step === 0.1)) {
+                    btn.classList.add('active');
+                    jogStep = step;
+                }
+                container.appendChild(btn);
+            });
+        }
+
+        // Tool Change Wizard
+        let tcStepIndex = 0;
+        let tcStartX = 0, tcStartY = 0;
+        let tcProbeZ = 0;  // Will store probe result
+        const tcSteps = [
+            { desc: 'Raise Z to safe height', cmd: 'G53 G0 Z-1' },
+            { desc: 'Go to tool change position (front-right)', cmd: 'G53 G0 X-2 Y-418' },
+            { desc: 'CHANGE TOOL NOW - then click Send', cmd: null, wait: true },
+            { desc: 'Raise Z (safety)', cmd: 'G53 G0 Z-1' },
+            { desc: 'Zero work Z for probing', cmd: 'G10 L20 P1 Z0' },
+            { desc: 'Go to probe position (G28)', cmd: 'G28' },
+            { desc: 'Set absolute mode', cmd: 'G90' },
+            { desc: 'Fast probe down', cmd: 'G38.2 Z-78 F300' },
+            { desc: 'Relative mode for backoff', cmd: 'G91' },
+            { desc: 'Back off 2mm', cmd: 'G0 Z2' },
+            { desc: 'Slow probe', cmd: 'G38.2 Z-4 F10' },
+            { desc: 'Set absolute mode', cmd: 'G90' },
+            { desc: 'Raise Z to safe height', cmd: 'G53 G0 Z-1' },
+            { desc: 'Calculate & set work Z offset', cmd: () => {
+                // Read current work Z (probe touched here, so workZ = 0 + probe travel)
+                const workZ = parseFloat(document.getElementById('workZ').textContent) || 0;
+                // Calculate offset: global.probeWorkZ - currentProbeZ
+                // For now, just use current workZ as the offset base
+                return `G10 L20 P1 Z${(-workZ).toFixed(3)}`;
+            }},
+            { desc: 'Return to start XY', cmd: () => `G0 X${tcStartX.toFixed(3)} Y${tcStartY.toFixed(3)}` },
+            { desc: 'Go to Z+1 in work coords', cmd: 'G0 Z1' },
+        ];
+
+        function openToolChangeModal() {
+            // Capture start position
+            tcStartX = parseFloat(document.getElementById('workX').textContent) || 0;
+            tcStartY = parseFloat(document.getElementById('workY').textContent) || 0;
+            tcStepIndex = 0;
+            updateToolChangeUI();
+            document.getElementById('toolChangeModal').classList.add('open');
+        }
+
+        function closeToolChangeModal() {
+            document.getElementById('toolChangeModal').classList.remove('open');
+        }
+
+        function updateToolChangeUI() {
+            const step = tcSteps[tcStepIndex];
+            document.getElementById('tcStep').textContent = tcStepIndex + 1;
+            document.getElementById('tcTotal').textContent = tcSteps.length;
+            document.getElementById('tcDescription').textContent = step.desc;
+
+            let cmdText = step.cmd;
+            if (typeof cmdText === 'function') cmdText = cmdText();
+            document.getElementById('tcCommand').textContent = cmdText || '(manual step)';
+            document.getElementById('tcSendBtn').textContent = step.wait ? 'Continue' : 'Send';
+        }
+
+        function toolChangeSend() {
+            const step = tcSteps[tcStepIndex];
+
+            // Send command if there is one
+            if (step.cmd) {
+                let cmdText = step.cmd;
+                if (typeof cmdText === 'function') cmdText = cmdText();
+                cmd(cmdText);
+            }
+
+            // Advance to next step
+            tcStepIndex++;
+            if (tcStepIndex >= tcSteps.length) {
+                // Done!
+                closeToolChangeModal();
+                debugLog('=== TOOL CHANGE COMPLETE ===', 'info');
+            } else {
+                updateToolChangeUI();
+            }
+        }
+
+        const keyBindings = {
+            '4': () => runMacro('Set_Z'),
+            '5': () => runMacro('TOOL_CHANGE'),
+        };
+
+        function cycleStep(direction) {
+            const steps = currentUnit === 'mm' ? mmSteps : inSteps;
+            const currentIndex = steps.indexOf(jogStep);
+            const newIndex = Math.max(0, Math.min(steps.length - 1, currentIndex + direction));
+            if (newIndex !== currentIndex) {
+                jogStep = steps[newIndex];
+                document.querySelectorAll('.step-btn').forEach((btn, i) => {
+                    btn.classList.toggle('active', i === newIndex);
+                });
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            // < and > for step size
+            if (e.key === '>' || e.key === '.') {
+                e.preventDefault();
+                cycleStep(1);
+                return;
+            }
+            if (e.key === '<' || e.key === ',') {
+                e.preventDefault();
+                cycleStep(-1);
+                return;
+            }
+            // Arrow keys for XY jog
+            if (e.key === 'ArrowUp') { e.preventDefault(); console.log(`KEY: ArrowUp → Y+`); jog('Y', 1); return; }
+            if (e.key === 'ArrowDown') { e.preventDefault(); console.log(`KEY: ArrowDown → Y-`); jog('Y', -1); return; }
+            if (e.key === 'ArrowLeft') { e.preventDefault(); console.log(`KEY: ArrowLeft → X-`); jog('X', -1); return; }
+            if (e.key === 'ArrowRight') { e.preventDefault(); console.log(`KEY: ArrowRight → X+`); jog('X', 1); return; }
+            // Page Up/Down for Z (Fn+Up/Down on Mac)
+            if (e.key === 'PageUp') { e.preventDefault(); console.log(`KEY: PageUp → Z+`); jog('Z', 1); return; }
+            if (e.key === 'PageDown') { e.preventDefault(); console.log(`KEY: PageDown → Z-`); jog('Z', -1); return; }
+            // Home/End for A (Fn+Left/Right on Mac)
+            if (e.key === 'Home') { e.preventDefault(); jog('A', -1); return; }
+            if (e.key === 'End') { e.preventDefault(); jog('A', 1); return; }
+            const key = e.key.toLowerCase();
+            if (keyBindings[key]) {
+                e.preventDefault();
+                keyBindings[key]();
+            }
+        });
+
+        function setupCamera() {
+            const cam = document.getElementById('camera');
+            const img = document.createElement('img');
+            img.src = CAMERA_URL;
+            img.onerror = () => { cam.innerHTML = '<span>Camera unavailable</span>'; };
+            img.onload = () => { cam.innerHTML = ''; cam.appendChild(img); };
+        }
+
+        let currentWorkCoords = { x: 0, y: 0, z: 0 };
+
+        function openWorkModal() {
+            const x = parseFloat(document.getElementById('workX').textContent) || 0;
+            const y = parseFloat(document.getElementById('workY').textContent) || 0;
+            const z = parseFloat(document.getElementById('workZ').textContent) || 0;
+            const a = parseFloat(document.getElementById('workA').textContent) || 0;
+            currentWorkCoords = { x, y, z, a };
+            document.getElementById('modalX').value = x.toFixed(3);
+            document.getElementById('modalY').value = y.toFixed(3);
+            document.getElementById('modalZ').value = z.toFixed(3);
+            document.getElementById('modalA').value = a.toFixed(3);
+            document.getElementById('workModal').classList.add('open');
+            document.getElementById('modalX').focus();
+        }
+
+        function closeWorkModal() {
+            document.getElementById('workModal').classList.remove('open');
+        }
+
+        function applyWorkCoords() {
+            const newX = parseFloat(document.getElementById('modalX').value);
+            const newY = parseFloat(document.getElementById('modalY').value);
+            const newZ = parseFloat(document.getElementById('modalZ').value);
+            const newA = parseFloat(document.getElementById('modalA').value);
+
+            // Check what changed
+            const xChanged = Math.abs(newX - currentWorkCoords.x) > 0.0001;
+            const yChanged = Math.abs(newY - currentWorkCoords.y) > 0.0001;
+            const zChanged = Math.abs(newZ - currentWorkCoords.z) > 0.0001;
+            const aChanged = Math.abs(newA - currentWorkCoords.a) > 0.0001;
+
+            // Handle Z change
+            if (zChanged) {
+                setWorkZAndProbe(newZ.toFixed(3));
+            }
+
+            // Handle X, Y, A changes normally
+            let parts = [];
+            if (xChanged) parts.push(`X${newX.toFixed(3)}`);
+            if (yChanged) parts.push(`Y${newY.toFixed(3)}`);
+            if (aChanged) parts.push(`A${newA.toFixed(3)}`);
+            if (parts.length > 0) {
+                cmd(`G10 L20 P1 ${parts.join(' ')}`);
+            }
+
+            closeWorkModal();
+        }
+
+        connect();
+        setupCamera();
+        updateStepButtons();
+        updateButtonStates();
+    </script>
+</body>
+</html>
