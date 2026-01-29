@@ -261,7 +261,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.037</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.038</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1292,7 +1292,7 @@
             }
         }
 
-        // Debug spindle test - sends M3 S12000, then -10% every 5 seconds until off
+        // Debug spindle test - moves Z down slowly while adjusting spindle speed
         let debugSpindleRunning = false;
         async function debugSpindleTest() {
             if (debugSpindleRunning) {
@@ -1305,8 +1305,11 @@
             btn.textContent = 'Running...';
 
             debugLog('=== DEBUG SPINDLE TEST START ===', 'info');
-            debugLog('Step 1: M3 S12000', 'info');
+            debugLog('Step 1: M3 S12000 + G1 Z-5 F6 (slow move during test)', 'info');
             cmd('M3 S12000');
+            cmd('G91');  // Relative mode
+            cmd('G1 Z-5 F6');  // Move Z down 5mm at F6 (6mm/min = 50 seconds)
+            cmd('G90');  // Back to absolute
 
             for (let pct = 100; pct >= 10; pct -= 10) {
                 await new Promise(r => setTimeout(r, 5000));
