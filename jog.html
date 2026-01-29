@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.048</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.049</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1365,10 +1365,6 @@
             currentSpindleOverride = newOverride;
             debugLog('Sending realtime 0x' + byte.toString(16) + ' newOverride=' + newOverride, 'info');
             sendRealtime(byte);
-            // Re-send S command to force PWM update (realtime override alone doesn't update PWM)
-            if (spindleRunning && lastSpindleSpeed > 0) {
-                cmd('S' + lastSpindleSpeed);
-            }
             updateSpindleDisplay();
         }
 
