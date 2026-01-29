@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.045</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.046</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -811,12 +811,10 @@
                 document.getElementById('spindleOverride').textContent = msg.spindle_override + '%';
             }
 
-            // Spindle RPM - calculate actual from programmed speed × override %
+            // Spindle RPM - GRBL reports actual speed (already override-adjusted) in FS:
             if (msg.spindle_speed !== undefined) {
                 if (msg.spindle_speed > 0) lastSpindleSpeed = msg.spindle_speed;
-                // GRBL reports programmed speed, multiply by override to get actual
-                const actualRPM = Math.round(msg.spindle_speed * currentSpindleOverride / 100);
-                document.getElementById('spindleRPMValue').textContent = actualRPM || 0;
+                document.getElementById('spindleRPMValue').textContent = msg.spindle_speed || 0;
                 // Track spindle state from controller status
                 spindleRunning = msg.spindle_speed > 0;
                 updateSpindleDisplay();
