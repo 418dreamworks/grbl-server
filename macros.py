@@ -37,6 +37,7 @@ class MacroEngine:
         self.continue_event: asyncio.Event = asyncio.Event()
         self.cancel_flag: bool = False
         self.broadcast_callback = None
+        self.notify_callback = None  # Called when user action required (e.g. tool change)
 
         # Stored values from SetZ
         self.probe_work_z: Optional[float] = None
@@ -201,6 +202,11 @@ class MacroEngine:
                     'waiting': True,
                 })
             await self._log('=== WAITING FOR TOOL CHANGE ===')
+
+            # Send SMS notification
+            if self.notify_callback:
+                await self.notify_callback('CNC: Tool change required. Change tool and press CONTINUE.')
+
             await self.continue_event.wait()
             self.waiting_continue = False
             await self._log('=== CONTINUING ===')

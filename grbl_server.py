@@ -20,6 +20,8 @@ import re
 import time
 import os
 import argparse
+import smtplib
+from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Set
 from dataclasses import dataclass, field
@@ -47,6 +49,43 @@ STATUS_POLL_INTERVAL = 0.2  # 200ms
 RECOVERY_SAVE_INTERVAL = 100  # Save recovery every N lines
 LOG_DIR = 'logs'
 LOG_MAX_AGE_DAYS = 7
+
+# SMS Notification via email-to-SMS gateway
+SMS_ENABLED = True
+SMS_SMTP_SERVER = 'smtp.gmail.com'
+SMS_SMTP_PORT = 587
+SMS_FROM_EMAIL = 'tzuohann@gmail.com'
+SMS_APP_PASSWORD = 'hgtv igwu kmhu fdad'
+SMS_TO_ADDRESS = '2674743645@tmomail.net'
+
+
+def send_sms(message: str) -> bool:
+    """Send SMS notification via email-to-SMS gateway."""
+    if not SMS_ENABLED:
+        return False
+
+    try:
+        msg = MIMEText(message)
+        msg['From'] = SMS_FROM_EMAIL
+        msg['To'] = SMS_TO_ADDRESS
+        msg['Subject'] = ''  # SMS doesn't use subject
+
+        with smtplib.SMTP(SMS_SMTP_SERVER, SMS_SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMS_FROM_EMAIL, SMS_APP_PASSWORD)
+            server.send_message(msg)
+
+        print(f'[SMS] Sent: {message}')
+        return True
+    except Exception as e:
+        print(f'[SMS] Failed to send: {e}')
+        return False
+
+
+async def send_sms_async(message: str) -> bool:
+    """Async wrapper for send_sms."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, send_sms, message)
 
 # ============================================================
 # SERIAL LOGGER
@@ -609,6 +648,11 @@ class GrblServer:
         self.grbl.broadcast_callback = self.broadcast
         self.streamer.broadcast_callback = self.broadcast
         self.macros.broadcast_callback = self.broadcast
+        self.macros.notify_callback = self.send_notification
+
+    async def send_notification(self, message: str):
+        """Send SMS notification for user action required."""
+        await send_sms_async(message)
 
     async def broadcast(self, msg: Dict[str, Any]):
         """Broadcast message to all connected clients."""
