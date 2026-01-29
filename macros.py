@@ -203,9 +203,7 @@ class MacroEngine:
                 })
             await self._log('=== WAITING FOR TOOL CHANGE ===')
 
-            # Send SMS notification
-            if self.notify_callback:
-                await self.notify_callback('CNC: Tool change required. Change tool and press CONTINUE.')
+            # No SMS notification for manual tool_change macro - user is already at the machine
 
             await self.continue_event.wait()
             self.waiting_continue = False

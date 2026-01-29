@@ -488,8 +488,6 @@ class FileStreamer:
         self.running: bool = False
         self.paused: bool = False
         self.stop_flag: bool = False
-        self.last_safe_line: int = 0
-        self.last_safe_gcode: str = ''
         self.broadcast_callback = None
         self.stream_task: Optional[asyncio.Task] = None
         self.recovery_file: str = 'recovery.txt'
@@ -500,8 +498,6 @@ class FileStreamer:
         self.lines = [l.strip() for l in content.split('\n') if l.strip() and not l.strip().startswith(';')]
         self.total_lines = len(self.lines)
         self.current_line = 0
-        self.last_safe_line = 0
-        self.last_safe_gcode = ''
         print(f'[Streamer] Loaded {filename}: {self.total_lines} lines')
 
     async def start(self, from_line: int = 0):
@@ -544,11 +540,6 @@ class FileStreamer:
                     })
                 # For now, continue on errors (can make this configurable)
 
-            # Track safe lines (G0/G1 without I/J parameters)
-            if self._is_safe_line(line):
-                self.last_safe_line = self.current_line + 1
-                self.last_safe_gcode = line
-
             # Save recovery periodically
             if self.current_line % RECOVERY_SAVE_INTERVAL == 0:
                 self._save_recovery()
@@ -562,8 +553,6 @@ class FileStreamer:
                     'total': self.total_lines,
                     'percent': (self.current_line + 1) / self.total_lines * 100,
                     'current_gcode': line,
-                    'last_safe_line': self.last_safe_line,
-                    'last_safe_gcode': self.last_safe_gcode,
                 })
 
             self.current_line += 1
@@ -581,18 +570,6 @@ class FileStreamer:
                     'total': self.total_lines,
                 })
 
-    def _is_safe_line(self, line: str) -> bool:
-        """Check if line is a safe resumption point (G0/G1 without I/J)."""
-        upper = line.upper()
-        # Must be a motion command
-        if not (upper.startswith('G0') or upper.startswith('G1')):
-            if not ('G0 ' in upper or 'G1 ' in upper or 'G00' in upper or 'G01' in upper):
-                return False
-        # Must not have I/J parameters (arc center offsets)
-        if ' I' in upper or ' J' in upper:
-            return False
-        return True
-
     def _save_recovery(self):
         """Save recovery information to file."""
         try:
@@ -600,8 +577,6 @@ class FileStreamer:
                 f.write(f'file={self.filename}\n')
                 f.write(f'total={self.total_lines}\n')
                 f.write(f'current={self.current_line}\n')
-                f.write(f'safe_line={self.last_safe_line}\n')
-                f.write(f'safe_gcode={self.last_safe_gcode}\n')
                 f.write(f'timestamp={time.strftime("%Y-%m-%d %H:%M:%S")}\n')
                 if self.grbl.connected:
                     f.write(f'mpos_z={self.grbl.status.mpos["z"]:.3f}\n')
@@ -658,6 +633,11 @@ def analyze_gcode(lines: List[str]) -> Dict[str, Any]:
     current_f = 1000.0  # Default feed rate
     last_z = 0.0
     is_g1_mode = False  # Track if we're in G1 mode
+
+    # Bounds tracking (work coordinates - assumes starting at origin)
+    min_x, max_x = 0.0, 0.0
+    min_y, max_y = 0.0, 0.0
+    min_z, max_z = 0.0, 0.0
 
     # Time tracking - cumulative time at each line
     cumulative_time = []
@@ -729,8 +709,11 @@ def analyze_gcode(lines: List[str]) -> Dict[str, Any]:
             else:
                 max_feed = max(max_feed, current_f)
 
-        # Update position
+        # Update position and bounds
         pos_x, pos_y, pos_z = new_x, new_y, new_z
+        min_x, max_x = min(min_x, pos_x), max(max_x, pos_x)
+        min_y, max_y = min(min_y, pos_y), max(max_y, pos_y)
+        min_z, max_z = min(min_z, pos_z), max(max_z, pos_z)
 
         # Store cumulative time at this line
         cumulative_time.append(total_time)
@@ -770,6 +753,11 @@ def analyze_gcode(lines: List[str]) -> Dict[str, Any]:
         'tool_change_lines': tool_change_lines,
         'time_to_next_tc': time_to_next_tc,
         'total_time': total_time,
+        'bounds': {
+            'min_x': min_x, 'max_x': max_x,
+            'min_y': min_y, 'max_y': max_y,
+            'min_z': min_z, 'max_z': max_z,
+        },
     }
 
 

@@ -72,6 +72,7 @@
             background: #222;
             border-radius: 4px;
             grid-column: 1 / -1;
+            position: relative;
         }
         .pos > div > div:first-child > span { margin-right: 8px; }
         .pos .label { color: #666; }
@@ -251,58 +252,42 @@
             font-size: 12px;
             font-family: monospace;
         }
-
-        /* New: Resume line input */
-        .resume-input {
-            background: #1a1a1a;
-            color: #fff;
-            border: 1px solid #444;
-            border-radius: 4px;
-            padding: 4px 8px;
-            font-family: monospace;
-            font-size: 13px;
-            width: 80px;
-            text-align: right;
-        }
-
-        /* New: Big red resume button */
-        .resume-btn {
-            background: #8a2a2a !important;
-            border: 2px solid #aa3a3a !important;
-            color: #fff;
-            font-weight: bold;
-            font-size: 12px !important;
-            padding: 4px 12px !important;
-            min-width: auto !important;
-        }
-        .resume-btn:hover {
-            background: #aa3a3a !important;
-        }
     </style>
 </head>
 <body>
     <!-- Status Bar (full width) -->
     <div class="status-bar">
-        <div class="status-row">
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.018</span>
-                <span class="machine-state" id="machineState">DISCONNECTED</span>
-                <!-- Port selector -->
-                <select id="portSelect" class="port-select" onchange="changePort(this.value)">
-                    <option value="">Select port...</option>
-                </select>
-                <button onclick="refreshPorts()" style="padding:4px 8px; font-size:11px; min-width:auto;">Refresh</button>
-                <!-- File info -->
-                <span class="file-name" id="fileName">No file loaded</span>
-                <span class="progress" id="progress">--</span>
-                <!-- File stats (feed/plunge/spindle) -->
-                <span id="fileStats" style="font-size: 11px; color: #888; font-family: monospace;"></span>
-                <!-- Recovery info -->
-                <span class="recovery-info" id="recoveryInfo">Safe: --</span>
-                <!-- Tool change time estimate -->
-                <span id="toolChangeEta" style="font-size: 11px; color: #f90; font-family: monospace;"></span>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <!-- Left column: info rows stacked -->
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.030</span>
+                    <span class="machine-state" id="machineState">DISCONNECTED</span>
+                    <!-- Port selector -->
+                    <select id="portSelect" class="port-select" onchange="changePort(this.value)">
+                        <option value="">Select port...</option>
+                    </select>
+                    <!-- File info / Load button -->
+                    <input type="file" id="fileInput" accept=".nc,.gcode,.ngc,.tap" style="display:none" onchange="handleFileSelect(event)">
+                    <span class="file-name" id="fileName" onclick="document.getElementById('fileInput').click()" style="cursor:pointer; text-decoration: underline dotted;" title="Click to load file">Load File</span>
+                    <!-- File stats (feed/plunge/spindle) -->
+                    <span id="fileStats" style="font-size: 11px; color: #888; font-family: monospace;"></span>
+                    <!-- Bounds warning -->
+                    <span id="boundsWarning" style="font-size: 11px; color: #f55; font-family: monospace; font-weight: bold;"></span>
+                </div>
+                <!-- Second row: Job progress info -->
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span id="jobProgress" style="font-size: 11px; color: #aaa; font-family: monospace; border: 1px solid #444; padding: 2px 8px; border-radius: 3px; background: #222;">
+                        <span id="lineProgress">--/--</span>
+                        <span style="color: #666; margin: 0 6px;">|</span>
+                        <span id="timeRemaining" style="color: #6af;">--:--</span>
+                        <span style="color: #666; margin: 0 6px;">|</span>
+                        <span id="timeToTC" style="color: #f90;">--:-- to M6</span>
+                    </span>
+                </div>
             </div>
-            <div class="btn-container" style="display: flex; flex-direction: column; gap: 4px; width: 468px;">
+            <!-- Right column: buttons centered -->
+            <div class="btn-container" style="display: flex; flex-direction: column; justify-content: center; gap: 4px; width: 468px;">
                 <div id="currentLine" style="display:none;">--</div>
                 <div style="display: flex; gap: 16px;">
                 <div class="job-ctrl" style="display: flex; gap: 8px; width: 50%;">
@@ -318,56 +303,38 @@
                 </div>
             </div>
         </div>
-        <!-- File load + resume row -->
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-            <div class="file-controls">
-                <input type="file" id="fileInput" accept=".nc,.gcode,.ngc,.tap" style="display:none" onchange="handleFileSelect(event)">
-                <button onclick="document.getElementById('fileInput').click()" style="background:#3a3a3a;">Load File</button>
-            </div>
-            <span style="color:#666; font-size:12px;">Resume from line:</span>
-            <input type="number" id="resumeLine" class="resume-input" placeholder="auto" min="1">
-            <button class="resume-btn" onclick="confirmResume()">RESUME FROM LINE</button>
-        </div>
         <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
     </div>
 
     <!-- Position Display (full width) -->
     <div class="pos">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <div>
+            <div style="display: flex; align-items: center; min-width: 520px;">
                 <span class="label clickable" onclick="openWorkModal()" style="display:inline-block;width:40px;">Work:</span>
                 <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HX')" title="Home X">X:</span> <span id="workX" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 X0')">&#x2299;0</button></span>
                 <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HY')" title="Home Y">Y:</span> <span id="workY" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 Y0')">&#x2299;0</button></span>
                 <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HZ')" title="Home Z">Z:</span> <span id="workZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="zeroZAndSetZ()">&#x2299;0</button></span>
                 <span><span style="color: #fc0; cursor:pointer;" onclick="homeA()" title="Home A">A:</span> <span id="workA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
-                <span class="unit clickable" onclick="toggleUnits()" id="unitWork">mm</span>
+                <span class="unit clickable" onclick="toggleUnits()" id="unitDisplay" style="margin-left: 15px; position: relative; top: 14px;">mm</span>
             </div>
-            <span id="spindleRPM" style="font-size: 20px; font-weight: bold; white-space: nowrap;"><span style="display:inline-block;width:50px;text-align:right;">--</span> <span style="display:inline-block;width:55px;">RPM</span></span>
-            <div style="display: flex; gap: 4px; align-items: center;">
-                <button id="spindleOnBtn" onclick="spindleOn()" class="spindle-off" style="min-width: auto; padding: 4px 10px; font-size: 13px;">ON</button>
-                <button onclick="spindleOff()" style="min-width: auto; padding: 4px 10px; font-size: 13px; background: #4a2a2a; border-color: #6a3a3a;">OFF</button>
-                <button onclick="setSpindleSpeed(9000)" style="min-width: auto; padding: 4px 8px; font-size: 12px;">9K</button>
-                <button onclick="setSpindleSpeed(15000)" style="min-width: auto; padding: 4px 8px; font-size: 12px;">15K</button>
-                <button onclick="setSpindleSpeed(24000)" style="min-width: auto; padding: 4px 8px; font-size: 12px;">24K</button>
-            </div>
+            <span id="spindleRPM" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="spindleRPMValue" style="display:inline-block;width:5ch;text-align:right;">--</span><span id="spindleRPMUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">RPM</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
                 <button onclick="spindleOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
                 <button onclick="spindleOverride(-1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-1%</button>
-                <span id="spindleOverride" onclick="spindleOverride(0)" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to reset to 100%">100%</span>
+                <span id="spindleOverride" onclick="spindleToggleOrReset()" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to turn on/reset to 100%">OFF</span>
                 <button onclick="spindleOverride(1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+1%</button>
                 <button onclick="spindleOverride(10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+10%</button>
             </div>
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between;">
-            <div>
+            <div style="display: flex; align-items: center; color: #444; min-width: 520px;">
                 <span class="label" style="display:inline-block;width:40px;">Mach:</span>
-                <span><span style="color: #fc0;">X:</span> <span id="machX" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HX')">&#x2192;0</button></span>
-                <span><span style="color: #fc0;">Y:</span> <span id="machY" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HY')">&#x2192;0</button></span>
-                <span><span style="color: #fc0;">Z:</span> <span id="machZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HZ')">&#x2192;0</button></span>
-                <span><span style="color: #fc0;">A:</span> <span id="machA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
-                <span class="unit clickable" onclick="toggleUnits()" id="unitMach">mm</span>
+                <span><span style="color: #553;">X:</span> <span id="machX" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HX')">&#x2192;0</button></span>
+                <span><span style="color: #553;">Y:</span> <span id="machY" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HY')">&#x2192;0</button></span>
+                <span><span style="color: #553;">Z:</span> <span id="machZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HZ')">&#x2192;0</button></span>
+                <span><span style="color: #553;">A:</span> <span id="machA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
             </div>
-            <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap;"><span style="display:inline-block;width:50px;text-align:right;">0</span> <span style="display:inline-block;width:55px;">mm/min</span></span>
+            <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="machineSpeedValue" style="display:inline-block;width:5ch;text-align:right;">0</span><span id="machineSpeedUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">mm/min</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
                 <button onclick="feedOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
                 <button onclick="feedOverride(-1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-1%</button>
@@ -485,6 +452,39 @@
         </button>
     </div>
 
+    <!-- Start Job Dialog (shown after file load) -->
+    <div class="modal" id="startJobModal" onclick="if(event.target===this)closeStartJobModal()">
+        <div class="modal-content" style="min-width: 350px;">
+            <h3 style="margin-bottom: 16px;">Start Job</h3>
+            <div style="margin-bottom: 12px; color: #888; font-size: 12px;">
+                Before starting, verify:<br>
+                - Tool is at safe position<br>
+                - Work zero is set correctly<br>
+                - If resuming, check Z height at that line
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; margin-bottom: 4px;">Start from line:</label>
+                <input type="number" id="startLine" value="1" min="1" style="width: 100px; padding: 6px; background: #222; border: 1px solid #444; border-radius: 4px; color: #fff; font-family: monospace;">
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="cursor: pointer; display: block; margin-bottom: 8px;">
+                    <input type="checkbox" id="spindleFirst" style="margin-right: 8px;" onchange="updateSpindleSpeedDisplay()">
+                    Turn on spindle first
+                </label>
+                <div id="spindleSpeedSelector" style="display: none; margin-left: 24px;">
+                    <button onclick="adjustStartSpindle(-1000)" style="padding: 4px 8px; font-size: 14px;">-</button>
+                    <span id="startSpindleSpeed" style="display: inline-block; width: 60px; text-align: center; font-family: monospace; font-weight: bold;">12000</span>
+                    <button onclick="adjustStartSpindle(1000)" style="padding: 4px 8px; font-size: 14px;">+</button>
+                    <span style="color: #888; margin-left: 4px;">RPM</span>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeStartJobModal()" style="background:#4a2a2a;">Cancel</button>
+                <button onclick="startJobFromModal()" style="background:#2a4a2a;">Start</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Confirm Dialog -->
     <div class="modal" id="confirmModal" onclick="if(event.target===this)confirmResolve(false)">
         <div class="modal-content" style="min-width: 300px; text-align: center;">
@@ -560,6 +560,7 @@
         let setZDone = false;
         let spindleWasRunning = false;
         let lastSpindleSpeed = 15000;
+        let currentFeedRate = 0;
         let streamerPaused = false;
         let fileLoaded = false;
         let lastSafeLine = null;
@@ -571,6 +572,11 @@
         let toolChangeLines = [];
         let timeToNextTC = [];  // Precomputed time remaining to next tool change for each line
         let totalFileTime = 0;
+
+        // G-code bounds (work coordinates from file analysis)
+        let gcodeBounds = null;  // {min_x, max_x, min_y, max_y, min_z, max_z}
+        // Work Coordinate Offset (machine pos when work = 0)
+        let wcoX = 0, wcoY = 0, wcoZ = 0;
 
         // ========== WEBSOCKET CONNECTION ==========
         let ws;
@@ -703,6 +709,20 @@
                 lastMachineState = currentState;
             }
 
+            // Track WCO (Work Coordinate Offset) = mpos - wpos
+            if (msg.mpos && msg.wpos) {
+                const newWcoX = msg.mpos.x - msg.wpos.x;
+                const newWcoY = msg.mpos.y - msg.wpos.y;
+                const newWcoZ = msg.mpos.z - msg.wpos.z;
+                // Re-check bounds if WCO changed significantly
+                if (Math.abs(newWcoX - wcoX) > 0.01 || Math.abs(newWcoY - wcoY) > 0.01 || Math.abs(newWcoZ - wcoZ) > 0.01) {
+                    wcoX = newWcoX;
+                    wcoY = newWcoY;
+                    wcoZ = newWcoZ;
+                    checkBoundsWithWCO();
+                }
+            }
+
             // Machine state badge
             if (msg.state) {
                 const stateEl = document.getElementById('machineState');
@@ -724,22 +744,20 @@
             // Spindle RPM
             if (msg.spindle_speed !== undefined) {
                 if (msg.spindle_speed > 0) lastSpindleSpeed = msg.spindle_speed;
-                document.getElementById('spindleRPM').innerHTML =
-                    '<span style="display:inline-block;width:50px;text-align:right;">' + (msg.spindle_speed || 0) +
-                    '</span> <span style="display:inline-block;width:55px;">RPM</span>';
+                document.getElementById('spindleRPMValue').textContent = msg.spindle_speed || 0;
                 // Update spindle running state
                 spindleRunning = msg.spindle_speed > 0;
-                updateSpindleButton();
+                updateSpindleDisplay();
             }
 
             // Feed rate
             if (msg.feed_rate !== undefined) {
-                const feed = msg.feed_rate || 0;
+                currentFeedRate = msg.feed_rate || 0;
+                const feed = currentFeedRate;
                 const unit = currentUnit === 'in' ? 'in' : 'mm';
                 const displayFeed = currentUnit === 'in' ? Math.round(feed / 25.4) : Math.round(feed);
-                document.getElementById('machineSpeed').innerHTML =
-                    '<span style="display:inline-block;width:50px;text-align:right;">' + displayFeed +
-                    '</span> <span style="display:inline-block;width:55px;">' + unit + '/min</span>';
+                document.getElementById('machineSpeedValue').textContent = displayFeed;
+                document.getElementById('machineSpeedUnit').textContent = unit + '/min';
             }
 
             updateButtonStates();
@@ -806,6 +824,8 @@
         }
 
         // ========== FILE STREAMING ==========
+        let loadedFileName = '';
+
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -813,38 +833,68 @@
             reader.onload = (e) => {
                 const content = e.target.result;
                 wsSend({ type: 'file_upload', filename: file.name, content: content });
+                loadedFileName = file.name;
                 document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileName').style.textDecoration = 'none';
                 fileLoaded = true;
                 debugLog('File loaded: ' + file.name, 'info');
                 // Update G-code viewer
                 updateGcodeViewer(content.split('\n'), 0);
+                // Show start job dialog
+                openStartJobModal();
             };
             reader.readAsText(file);
         }
 
-        function confirmResume() {
-            const lineInput = document.getElementById('resumeLine');
-            const fromLine = lineInput.value ? parseInt(lineInput.value) : undefined;
-            if (!fileLoaded) {
-                debugLog('No file loaded', 'error');
-                return;
+        let startSpindleSpeed = 12000;
+
+        function openStartJobModal() {
+            document.getElementById('startLine').value = '1';
+            document.getElementById('spindleFirst').checked = false;
+            startSpindleSpeed = 12000;
+            document.getElementById('startSpindleSpeed').textContent = '12000';
+            document.getElementById('spindleSpeedSelector').style.display = 'none';
+            document.getElementById('startJobModal').style.display = 'flex';
+        }
+
+        function closeStartJobModal() {
+            document.getElementById('startJobModal').style.display = 'none';
+        }
+
+        function updateSpindleSpeedDisplay() {
+            const checked = document.getElementById('spindleFirst').checked;
+            document.getElementById('spindleSpeedSelector').style.display = checked ? 'block' : 'none';
+        }
+
+        function adjustStartSpindle(delta) {
+            startSpindleSpeed = Math.max(1000, Math.min(30000, startSpindleSpeed + delta));
+            document.getElementById('startSpindleSpeed').textContent = startSpindleSpeed;
+        }
+
+        function startJobFromModal() {
+            const fromLine = parseInt(document.getElementById('startLine').value) || 1;
+            const spindleFirst = document.getElementById('spindleFirst').checked;
+
+            closeStartJobModal();
+
+            // Turn on spindle first if requested
+            if (spindleFirst) {
+                wsSend({ type: 'gcode', line: 'M3 S' + startSpindleSpeed });
+                debugLog('Spindle ON (M3 S' + startSpindleSpeed + ')', 'info');
             }
-            const msg = fromLine
-                ? 'Start streaming from line ' + fromLine + '?'
-                : 'Start streaming from the beginning?';
-            showConfirm(msg, (yes) => {
-                if (!yes) return;
-                const payload = { type: 'file_start' };
-                if (fromLine) payload.from_line = fromLine;
-                wsSend(payload);
-            });
+
+            // Start streaming
+            const payload = { type: 'file_start' };
+            if (fromLine > 1) payload.from_line = fromLine;
+            wsSend(payload);
+            debugLog('Starting from line ' + fromLine, 'info');
         }
 
         function handleFileStatus(msg) {
             document.getElementById('fileName').textContent = msg.filename || '';
             const pct = (msg.percent || 0).toFixed(1);
-            document.getElementById('progress').textContent =
-                msg.current + '/' + msg.total + ' (' + pct + '%)';
+            document.getElementById('lineProgress').textContent =
+                msg.current + '/' + msg.total;
             document.getElementById('progressFill').style.width = pct + '%';
             if (msg.current_gcode) {
                 document.getElementById('gcodeInput').placeholder = 'L' + msg.current + ': ' + msg.current_gcode;
@@ -857,8 +907,6 @@
             if (msg.last_safe_line) {
                 lastSafeLine = msg.last_safe_line;
                 lastSafeGcode = msg.last_safe_gcode || '';
-                document.getElementById('recoveryInfo').textContent = 'Safe: L' + msg.last_safe_line;
-                document.getElementById('resumeLine').placeholder = msg.last_safe_line;
             }
             // Display file analysis stats
             if (msg.analysis) {
@@ -879,49 +927,117 @@
                 toolChangeLines = a.tool_change_lines || [];
                 timeToNextTC = a.time_to_next_tc || [];
                 totalFileTime = a.total_time || 0;
+
+                // Store bounds and check against machine limits (considering WCO)
+                gcodeBounds = a.bounds || null;
+                checkBoundsWithWCO();
             }
 
-            // Update tool change time estimate
-            updateToolChangeEstimate(msg.current);
+            // Update job progress (time remaining, time to next TC)
+            updateJobProgress(msg.current);
         }
 
-        function updateToolChangeEstimate(currentLine) {
-            const etaEl = document.getElementById('toolChangeEta');
-            if (!timeToNextTC.length || currentLine < 1 || currentLine > timeToNextTC.length) {
-                etaEl.textContent = '';
+        function updateJobProgress(currentLine) {
+            const timeRemainingEl = document.getElementById('timeRemaining');
+            const timeToTCEl = document.getElementById('timeToTC');
+
+            // No data available
+            if (!timeToNextTC.length) {
+                timeRemainingEl.textContent = '--:--';
+                timeToTCEl.textContent = '--:-- to M6';
                 return;
             }
+
+            // Use line 1 if not streaming yet (currentLine is 0)
+            const lineIndex = currentLine < 1 ? 0 : Math.min(currentLine - 1, timeToNextTC.length - 1);
 
             // Get precomputed time remaining to next tool change (in minutes)
-            const baseTime = timeToNextTC[currentLine - 1];
+            const baseTimeToTC = timeToNextTC[lineIndex];
 
             // Adjust by feed override (e.g., 80% feed = time takes longer)
-            const adjustedTime = baseTime / (currentFeedOverride / 100);
+            const adjustedTimeToTC = baseTimeToTC / (currentFeedOverride / 100);
 
-            if (adjustedTime <= 0) {
-                etaEl.textContent = '';
+            // Calculate total time remaining (from current line to end)
+            // timeToNextTC at line 0 gives time to first TC, but we need time to end
+            // Use cumulative time if available, otherwise estimate from line position
+            const lineRatio = lineIndex / Math.max(timeToNextTC.length - 1, 1);
+            const adjustedTotalTime = totalFileTime / (currentFeedOverride / 100);
+            const timeRemaining = adjustedTotalTime * (1 - lineRatio);
+
+            // Format time remaining
+            if (timeRemaining > 0) {
+                const mins = Math.floor(timeRemaining);
+                const secs = Math.floor((timeRemaining - mins) * 60);
+                timeRemainingEl.textContent = mins + ':' + secs.toString().padStart(2, '0');
+            } else {
+                timeRemainingEl.textContent = '--:--';
+            }
+
+            // Format time to next TC
+            if (adjustedTimeToTC > 0) {
+                const mins = Math.floor(adjustedTimeToTC);
+                const secs = Math.floor((adjustedTimeToTC - mins) * 60);
+                const timeStr = mins + ':' + secs.toString().padStart(2, '0');
+
+                // Find which tool change we're approaching
+                const effectiveLine = currentLine < 1 ? 1 : currentLine;
+                let nextTC = 1;
+                for (let i = 0; i < toolChangeLines.length; i++) {
+                    if (toolChangeLines[i] > effectiveLine) {
+                        nextTC = i + 1;
+                        break;
+                    }
+                    nextTC = i + 2;  // Past last TC
+                }
+
+                if (nextTC <= toolChangeLines.length) {
+                    timeToTCEl.textContent = timeStr + ' to M6';
+                } else {
+                    timeToTCEl.textContent = timeStr + ' to end';
+                }
+            } else {
+                timeToTCEl.textContent = '--:-- to M6';
+            }
+        }
+
+        function checkBoundsWithWCO() {
+            // Check G-code bounds against machine limits, considering current Work Coordinate Offset
+            // Machine position = work position + WCO
+            // Machine limits: 0 (home) to -workMax (far end)
+            const boundsEl = document.getElementById('boundsWarning');
+            boundsEl.style.color = '#f55';  // Default red for warnings
+
+            if (!gcodeBounds) {
+                boundsEl.textContent = '';
                 return;
             }
 
-            // Format as mm:ss
-            const mins = Math.floor(adjustedTime);
-            const secs = Math.floor((adjustedTime - mins) * 60);
-            const timeStr = mins + ':' + secs.toString().padStart(2, '0');
+            const b = gcodeBounds;
+            let warnings = [];
 
-            // Find which tool change we're approaching
-            let nextTC = 1;
-            for (let i = 0; i < toolChangeLines.length; i++) {
-                if (toolChangeLines[i] > currentLine) {
-                    nextTC = i + 1;
-                    break;
-                }
-                nextTC = i + 2;  // Past last TC, show time to end
-            }
+            // Calculate machine positions for G-code bounds
+            // Machine coords are typically negative (0 at home, -400 at far end)
+            // mpos = wpos + WCO
+            const machMinX = b.min_x + wcoX;
+            const machMaxX = b.max_x + wcoX;
+            const machMinY = b.min_y + wcoY;
+            const machMaxY = b.max_y + wcoY;
+            const machMinZ = b.min_z + wcoZ;
+            const machMaxZ = b.max_z + wcoZ;
 
-            if (nextTC <= toolChangeLines.length) {
-                etaEl.textContent = '~' + timeStr + ' to T' + nextTC;
+            // Check against machine limits (0 to -workMax)
+            if (machMaxX > 0.1) warnings.push('X>' + machMaxX.toFixed(0));
+            if (machMinX < -workMaxX - 0.1) warnings.push('X<' + machMinX.toFixed(0));
+            if (machMaxY > 0.1) warnings.push('Y>' + machMaxY.toFixed(0));
+            if (machMinY < -workMaxY - 0.1) warnings.push('Y<' + machMinY.toFixed(0));
+            if (machMaxZ > 0.1) warnings.push('Z>' + machMaxZ.toFixed(0));
+            if (machMinZ < -workMaxZ - 0.1) warnings.push('Z<' + machMinZ.toFixed(0));
+
+            if (warnings.length > 0) {
+                boundsEl.textContent = '⚠ LIMITS: ' + warnings.join(', ');
             } else {
-                etaEl.textContent = '~' + timeStr + ' to end';
+                boundsEl.textContent = '✓ OK';
+                boundsEl.style.color = '#6a6';
             }
         }
 
@@ -1096,49 +1212,68 @@
         }
 
         let currentSpindleOverride = 100;
-        function spindleOverride(delta) {
-            if (!connected) return;
-            let byte;
-            if (delta === 0) { byte = 0x99; currentSpindleOverride = 100; }
-            else if (delta === 10) { byte = 0x9A; currentSpindleOverride = Math.min(200, currentSpindleOverride + 10); }
-            else if (delta === -10) { byte = 0x9B; currentSpindleOverride = Math.max(10, currentSpindleOverride - 10); }
-            else if (delta === 1) { byte = 0x9C; currentSpindleOverride = Math.min(200, currentSpindleOverride + 1); }
-            else if (delta === -1) { byte = 0x9D; currentSpindleOverride = Math.max(10, currentSpindleOverride - 1); }
-            if (byte) sendRealtime(byte);
-            document.getElementById('spindleOverride').textContent = currentSpindleOverride + '%';
-        }
-
         let spindleRunning = false;
-        function spindleOn() {
-            if (!connected) return;
-            cmd('M3 S' + lastSpindleSpeed);
-            spindleRunning = true;
-            updateSpindleButton();
-        }
 
-        function spindleOff() {
+        function spindleToggleOrReset() {
             if (!connected) return;
-            cmd('M5');
-            spindleRunning = false;
-            updateSpindleButton();
-        }
-
-        function setSpindleSpeed(rpm) {
-            if (!connected) return;
-            lastSpindleSpeed = rpm;
-            if (spindleRunning) {
-                cmd('S' + rpm);
+            if (!spindleRunning) {
+                // Spindle is off - turn it on at S12000
+                cmd('M3 S12000');
+                spindleRunning = true;
+                currentSpindleOverride = 100;
+                updateSpindleDisplay();
+            } else {
+                // Spindle is on - reset to 100%
+                sendRealtime(0x99);
+                currentSpindleOverride = 100;
+                updateSpindleDisplay();
             }
         }
 
-        function updateSpindleButton() {
-            const btn = document.getElementById('spindleOnBtn');
+        function spindleOverride(delta) {
+            if (!connected) return;
+            if (!spindleRunning) return; // Can't override if spindle is off
+
+            let byte;
+            let newOverride = currentSpindleOverride;
+
+            if (delta === 10) { byte = 0x9A; newOverride = Math.min(200, currentSpindleOverride + 10); }
+            else if (delta === -10) { newOverride = currentSpindleOverride - 10; byte = 0x9B; }
+            else if (delta === 1) { byte = 0x9C; newOverride = Math.min(200, currentSpindleOverride + 1); }
+            else if (delta === -1) { newOverride = currentSpindleOverride - 1; byte = 0x9D; }
+
+            // Going below 10% means stop spindle
+            if (newOverride < 10) {
+                // Turn off spindle
+                cmd('M5');
+                spindleRunning = false;
+                currentSpindleOverride = 100;
+                updateSpindleDisplay();
+                // If feed is active (job running), also pause
+                if (currentFeedRate > 0) {
+                    sendRealtime(0x21); // Feed hold (!)
+                    debugLog('Spindle stopped - feed paused', 'info');
+                } else {
+                    debugLog('Spindle stopped', 'info');
+                }
+                return;
+            }
+
+            currentSpindleOverride = newOverride;
+            if (byte) sendRealtime(byte);
+            updateSpindleDisplay();
+        }
+
+        function updateSpindleDisplay() {
+            const el = document.getElementById('spindleOverride');
             if (spindleRunning) {
-                btn.classList.remove('spindle-off');
-                btn.classList.add('spindle-on');
+                el.textContent = currentSpindleOverride + '%';
+                el.style.background = '#2a4a2a';
+                el.style.color = '#6f6';
             } else {
-                btn.classList.remove('spindle-on');
-                btn.classList.add('spindle-off');
+                el.textContent = 'OFF';
+                el.style.background = '#4a2a2a';
+                el.style.color = '#f66';
             }
         }
 
@@ -1233,8 +1368,7 @@
                 currentUnit = 'mm';
                 cmd('G21');
             }
-            document.getElementById('unitWork').textContent = currentUnit;
-            document.getElementById('unitMach').textContent = currentUnit;
+            document.getElementById('unitDisplay').textContent = currentUnit;
             updateStepButtons();
         }
 
@@ -1497,7 +1631,8 @@
 
         function showView(view) {
             currentView = view;
-            document.getElementById('camera').style.display = view === 'camera' ? 'flex' : 'none';
+            // Use visibility instead of display so camera maintains container size
+            document.getElementById('camera').style.visibility = view === 'camera' ? 'visible' : 'hidden';
             document.getElementById('gcodeViewer').style.display = view === 'gcode' ? 'block' : 'none';
             document.getElementById('btnViewCamera').style.background = view === 'camera' ? '#2a4a2a' : '#333';
             document.getElementById('btnViewCamera').style.borderColor = view === 'camera' ? '#3a6a3a' : '#555';
