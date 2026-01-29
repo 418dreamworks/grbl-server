@@ -261,7 +261,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.036</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.037</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -407,6 +407,10 @@
                 <!-- Status -->
                 <div>
                     <button id="debugInfo" style="width: 100%; padding: 12px; background: #3a3a3a; border-color: #555;">&#x2713; Synced</button>
+                </div>
+                <!-- Debug spindle test -->
+                <div>
+                    <button id="debugSpindleBtn" onclick="debugSpindleTest()" style="width: 100%; padding: 8px; background: #4a2a2a; border-color: #7a3a3a; font-size: 11px;">Debug Spindle</button>
                 </div>
             </div>
         </div>
@@ -1286,6 +1290,38 @@
                 el.style.background = '#4a2a2a';
                 el.style.color = '#f66';
             }
+        }
+
+        // Debug spindle test - sends M3 S12000, then -10% every 5 seconds until off
+        let debugSpindleRunning = false;
+        async function debugSpindleTest() {
+            if (debugSpindleRunning) {
+                debugLog('Debug test already running', 'error');
+                return;
+            }
+            debugSpindleRunning = true;
+            const btn = document.getElementById('debugSpindleBtn');
+            btn.style.background = '#2a4a2a';
+            btn.textContent = 'Running...';
+
+            debugLog('=== DEBUG SPINDLE TEST START ===', 'info');
+            debugLog('Step 1: M3 S12000', 'info');
+            cmd('M3 S12000');
+
+            for (let pct = 100; pct >= 10; pct -= 10) {
+                await new Promise(r => setTimeout(r, 5000));
+                debugLog('Step: Sending 0x9B (spindle -10%), target ' + (pct - 10) + '%', 'info');
+                sendRealtime(0x9B);
+            }
+
+            await new Promise(r => setTimeout(r, 5000));
+            debugLog('Step: Sending M5 (spindle off)', 'info');
+            cmd('M5');
+
+            debugLog('=== DEBUG SPINDLE TEST COMPLETE ===', 'info');
+            btn.style.background = '#4a2a2a';
+            btn.textContent = 'Debug Spindle';
+            debugSpindleRunning = false;
         }
 
         // ========== JOB CONTROL ==========
