@@ -285,7 +285,7 @@
     <div class="status-bar">
         <div class="status-row">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.016</span>
+                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.017</span>
                 <span class="machine-state" id="machineState">DISCONNECTED</span>
                 <!-- Port selector -->
                 <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1437,6 +1437,9 @@
         // ========== VIEW TOGGLE ==========
         let currentView = 'camera';
         let gcodeLines = [];
+        let gcodeCurrentLine = 0;
+        let userScrolling = false;
+        let userScrollTimeout = null;
 
         function showView(view) {
             currentView = view;
@@ -1446,30 +1449,63 @@
             document.getElementById('btnViewCamera').style.borderColor = view === 'camera' ? '#3a6a3a' : '#555';
             document.getElementById('btnViewGcode').style.background = view === 'gcode' ? '#2a4a2a' : '#333';
             document.getElementById('btnViewGcode').style.borderColor = view === 'gcode' ? '#3a6a3a' : '#555';
+            // Refresh gcode view when switching to it
+            if (view === 'gcode' && gcodeLines.length) {
+                updateGcodeViewer(null, gcodeCurrentLine);
+            }
         }
 
         function updateGcodeViewer(lines, currentLine) {
-            gcodeLines = lines || gcodeLines;
+            if (lines) gcodeLines = lines;
+            if (currentLine !== undefined) gcodeCurrentLine = currentLine;
+
             const container = document.getElementById('gcodeViewer');
             if (!gcodeLines.length) {
                 container.innerHTML = '<span style="color:#666;">No file loaded</span>';
                 return;
             }
-            let html = '';
-            for (let i = 0; i < gcodeLines.length; i++) {
-                const lineNum = i + 1;
-                const isCurrent = lineNum === currentLine;
-                const lineStyle = isCurrent ? 'background:#2a4a2a; color:#fff;' : 'color:#aaa;';
-                const numStyle = 'color:#555; display:inline-block; width:5ch; text-align:right; margin-right:8px;';
-                html += '<div style="' + lineStyle + ' white-space:pre;"><span style="' + numStyle + '">' + lineNum + '</span>' + escapeHtml(gcodeLines[i]) + '</div>';
+
+            // Only update highlight, not full rebuild (for performance during streaming)
+            const existingLines = container.querySelectorAll('div[data-line]');
+            if (existingLines.length === gcodeLines.length) {
+                // Just update highlight
+                existingLines.forEach(el => {
+                    const lineNum = parseInt(el.dataset.line);
+                    if (lineNum === gcodeCurrentLine) {
+                        el.style.background = '#2a4a2a';
+                        el.style.color = '#fff';
+                    } else {
+                        el.style.background = '';
+                        el.style.color = '#aaa';
+                    }
+                });
+            } else {
+                // Full rebuild
+                let html = '';
+                for (let i = 0; i < gcodeLines.length; i++) {
+                    const lineNum = i + 1;
+                    const isCurrent = lineNum === gcodeCurrentLine;
+                    const lineStyle = isCurrent ? 'background:#2a4a2a; color:#fff;' : 'color:#aaa;';
+                    const numStyle = 'color:#555; display:inline-block; width:5ch; text-align:right; margin-right:8px;';
+                    html += '<div data-line="' + lineNum + '" style="' + lineStyle + ' white-space:pre;"><span style="' + numStyle + '">' + lineNum + '</span>' + escapeHtml(gcodeLines[i]) + '</div>';
+                }
+                container.innerHTML = html;
             }
-            container.innerHTML = html;
-            // Auto-scroll to current line
-            if (currentLine > 0) {
+
+            // Auto-scroll only if user hasn't scrolled recently
+            if (gcodeCurrentLine > 0 && !userScrolling) {
                 const lineHeight = 18;
-                container.scrollTop = Math.max(0, (currentLine - 5) * lineHeight);
+                container.scrollTop = Math.max(0, (gcodeCurrentLine - 5) * lineHeight);
             }
         }
+
+        // Track user scrolling
+        document.getElementById('gcodeViewer').addEventListener('scroll', function() {
+            userScrolling = true;
+            clearTimeout(userScrollTimeout);
+            // Resume auto-scroll after 5 seconds of no manual scrolling
+            userScrollTimeout = setTimeout(() => { userScrolling = false; }, 5000);
+        });
 
         function escapeHtml(text) {
             return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
