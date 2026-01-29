@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.042</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.043</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1420,6 +1420,12 @@
             await new Promise(r => setTimeout(r, 5000));
             debugLog('Step: Sending M5 (spindle off)', 'info');
             cmd('M5');
+
+            // Reset override back to 100% so next spindle start isn't at 10%
+            debugLog('Resetting spindle override to 100%', 'info');
+            sendRealtime(0x99);
+            currentSpindleOverride = 100;
+            updateSpindleDisplay();
 
             debugLog('=== DEBUG SPINDLE TEST COMPLETE ===', 'info');
             btn.style.background = '#4a2a2a';
