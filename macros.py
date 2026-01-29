@@ -67,6 +67,12 @@ class MacroEngine:
 
             # Go to G28 position (X Y Z only, not A) using queried coordinates
             g28 = self.grbl.g28_pos
+            await self._log(f'G28 pos: X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
+
+            # Check if G28 position seems valid (not all zeros)
+            if g28['x'] == 0 and g28['y'] == 0 and g28['z'] == 0:
+                await self._log('WARNING: G28 position is 0,0,0 - may not be set! Use G28.1 to store probe position')
+
             await self._send_and_log(f'G53 G0 X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
             await self._wait_idle()
 
@@ -122,7 +128,29 @@ class MacroEngine:
             self.running = False
 
     async def run_tool_change(self):
-        """Run the ToolChange macro."""
+        """
+        Run the ToolChange macro - exact CNCjs logic.
+
+        CNCjs macro:
+        %startX = posx, %startY = posy, %startZ = posz   ; Save WORK coords
+        G53 G0 Z-1
+        %offsetToSafe = posz - startZ
+        G53 G0 X-2 Y-418
+        M0                                               ; Wait for tool change
+        G10 L20 P1 Z0                                    ; Zero work Z
+        G28 X0 Y0 Z0                                     ; Go to G28 probe location
+        G90
+        G38.2 Z-78 F300                                  ; Probe fast
+        G91
+        G0 Z2                                            ; Back off
+        G38.2 Z-4 F10                                    ; Probe slow
+        G90
+        %toolOffset = global.probeWorkZ - mposz          ; Calc offset using MACHINE Z
+        G53 G0 Z-1
+        G10 L20 P1 Z[startZ + offsetToSafe + toolOffset] ; Apply offset
+        G0 X[startX] Y[startY]                           ; Return to start XY
+        G0 Z[startZ]                                     ; Return to start Z
+        """
         if not self.set_z_done or self.probe_work_z is None:
             await self._report_error('SetZ must be run first')
             return
@@ -131,82 +159,111 @@ class MacroEngine:
         self.running = True
         self.cancel_flag = False
 
-        steps = [
-            ('Save position', 'Saving current XY position'),
-            ('Raise Z', f'G53 G0 Z{SAFE_Z}'),
-            ('Move to probe', f'G53 G0 X{TOOL_CHANGE_X} Y{TOOL_CHANGE_Y}'),
-            ('Wait for tool change', 'CONTINUE when tool is changed'),
-            ('Probe fast', f'G38.2 Z-{PROBE_DISTANCE} F{PROBE_FEED_FAST}'),
-            ('Back off', f'G91 G0 Z{PROBE_BACKOFF}'),
-            ('Probe slow', f'G38.2 Z-{PROBE_BACKOFF + 2} F{PROBE_FEED_SLOW}'),
-            ('Calculate offset', 'Computing Z offset from first probe'),
-            ('Restore position', 'Returning to saved XY with offset'),
-        ]
-
-        self.total_steps = len(steps)
-        saved_x = self.grbl.status.mpos['x']
-        saved_y = self.grbl.status.mpos['y']
-        new_probe_z = None
-
         try:
-            for i, (name, cmd) in enumerate(steps):
-                if self.cancel_flag:
-                    break
+            # %wait before capturing start position
+            await self._wait_idle()
 
-                self.current_step = i + 1
-                await self._report_step(name, cmd)
+            # %startX = posx, %startY = posy, %startZ = posz (WORK coords)
+            start_x = self.grbl.status.wpos['x']
+            start_y = self.grbl.status.wpos['y']
+            start_z = self.grbl.status.wpos['z']
+            await self._log(f'start: X{start_x:.3f} Y{start_y:.3f} Z{start_z:.3f}')
 
-                if i == 0:  # Save position
-                    saved_x = self.grbl.status.mpos['x']
-                    saved_y = self.grbl.status.mpos['y']
+            # G53 G0 Z-1
+            await self._send_and_log('G53 G0 Z-1')
+            await self._wait_idle()
 
-                elif i == 1:  # Raise Z
-                    await self.grbl.send_command(f'G53 G0 Z{SAFE_Z}')
-                    await asyncio.sleep(2)
+            # %offsetToSafe = posz - startZ
+            offset_to_safe = self.grbl.status.wpos['z'] - start_z
+            await self._log(f'offsetToSafe: {offset_to_safe:.3f}')
 
-                elif i == 2:  # Move to probe
-                    await self.grbl.send_command(f'G53 G0 X{TOOL_CHANGE_X} Y{TOOL_CHANGE_Y}')
-                    await asyncio.sleep(5)
+            # G53 G0 X-2 Y-418
+            await self._send_and_log(f'G53 G0 X{TOOL_CHANGE_X} Y{TOOL_CHANGE_Y}')
+            await self._wait_idle()
 
-                elif i == 3:  # Wait for tool change
-                    self.waiting_continue = True
-                    self.continue_event.clear()
-                    await self._report_step(name, cmd, waiting=True)
-                    await self.continue_event.wait()
-                    self.waiting_continue = False
+            # M0 - Wait for tool change
+            self.waiting_continue = True
+            self.continue_event.clear()
+            if self.broadcast_callback:
+                await self.broadcast_callback({
+                    'type': 'macro_status',
+                    'name': self.current_macro,
+                    'step': 1,
+                    'total': 1,
+                    'description': 'Change tool and press CONTINUE',
+                    'command': 'M0',
+                    'waiting': True,
+                })
+            await self._log('=== WAITING FOR TOOL CHANGE ===')
+            await self.continue_event.wait()
+            self.waiting_continue = False
+            await self._log('=== CONTINUING ===')
 
-                elif i == 4:  # Probe fast
-                    await self.grbl.send_command(f'G38.2 Z-{PROBE_DISTANCE} F{PROBE_FEED_FAST}')
-                    await asyncio.sleep(3)
+            # G10 L20 P1 Z0
+            await self._send_and_log('G10 L20 P1 Z0')
 
-                elif i == 5:  # Back off
-                    await self.grbl.send_command('G91')
-                    await self.grbl.send_command(f'G0 Z{PROBE_BACKOFF}')
-                    await self.grbl.send_command('G90')
-                    await asyncio.sleep(1)
+            # Go to G28 position (X Y Z only, not A) using queried coordinates
+            g28 = self.grbl.g28_pos
+            await self._log(f'G28 pos: X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
 
-                elif i == 6:  # Probe slow
-                    await self.grbl.send_command('G91')
-                    await self.grbl.send_command(f'G38.2 Z-{PROBE_BACKOFF + 2} F{PROBE_FEED_SLOW}')
-                    await self.grbl.send_command('G90')
-                    await asyncio.sleep(2)
-                    new_probe_z = self.grbl.status.wpos['z']
+            # Check if G28 position seems valid (not all zeros)
+            if g28['x'] == 0 and g28['y'] == 0 and g28['z'] == 0:
+                await self._log('WARNING: G28 position is 0,0,0 - may not be set! Use G28.1 to store probe position')
 
-                elif i == 7:  # Calculate offset
-                    if new_probe_z is not None and self.probe_work_z is not None:
-                        offset = new_probe_z - self.probe_work_z
-                        await self.grbl.send_command(f'G10 L20 P1 Z{-offset:.3f}')
+            await self._send_and_log(f'G53 G0 X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
+            await self._wait_idle()
 
-                elif i == 8:  # Restore
-                    await self.grbl.send_command(f'G53 G0 Z{SAFE_Z}')
-                    await asyncio.sleep(2)
-                    await self.grbl.send_command(f'G53 G0 X{saved_x:.3f} Y{saved_y:.3f}')
-                    await asyncio.sleep(2)
+            # G90
+            await self._send_and_log('G90')
 
-            if not self.cancel_flag:
-                await self._report_done()
+            # G38.2 Z-78 F300
+            await self._send_and_log('G38.2 Z-78 F300')
+            await self._wait_idle()
+
+            # G91
+            await self._send_and_log('G91')
+
+            # G0 Z2
+            await self._send_and_log('G0 Z2')
+            await self._wait_idle()
+
+            # G38.2 Z-4 F10
+            await self._send_and_log('G38.2 Z-4 F10')
+            await self._wait_idle()
+
+            # G90
+            await self._send_and_log('G90')
+
+            # %toolOffset = global.probeWorkZ - mposz (MACHINE Z)
+            new_mposz = self.grbl.status.mpos['z']
+            tool_offset = self.probe_work_z - new_mposz
+            await self._log(f'toolOffset: {tool_offset:.3f} (probeWorkZ={self.probe_work_z:.3f} - mposz={new_mposz:.3f})')
+
+            # Update probeWorkZ for next tool change (same as SetZ)
+            self.probe_work_z = new_mposz
+            await self._log(f'probeWorkZ updated to {self.probe_work_z:.3f}')
+
+            # G53 G0 Z-1
+            await self._send_and_log('G53 G0 Z-1')
+            await self._wait_idle()
+
+            # G10 L20 P1 Z[startZ + offsetToSafe + toolOffset]
+            restore_z = start_z + offset_to_safe + tool_offset
+            await self._send_and_log(f'G10 L20 P1 Z{restore_z:.3f}')
+
+            # G0 X[startX] Y[startY]
+            await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
+            await self._wait_idle()
+
+            # G0 Z[startZ]
+            await self._send_and_log(f'G0 Z{start_z:.3f}')
+            await self._wait_idle()
+
+            await self._log('=== TOOL_CHANGE COMPLETE ===')
+            await self._report_done()
 
         except Exception as e:
+            await self._log(f'TOOL_CHANGE ERROR: {e}')
             await self._report_error(str(e))
         finally:
             self.running = False

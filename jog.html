@@ -285,7 +285,7 @@
     <div class="status-bar">
         <div class="status-row">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.0</span>
+                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.003</span>
                 <span class="machine-state" id="machineState">DISCONNECTED</span>
                 <!-- Port selector -->
                 <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -459,9 +459,9 @@
     </div>
 
     <!-- M0 Continue Overlay -->
-    <div id="continueOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;" onclick="if(event.target===this)hideContinue()">
-        <button onclick="macroContinue(); hideContinue();" style="padding: 30px 60px; font-size: 28px; background: #2a4a2a; border: 3px solid #3a6a3a; color: #fff; border-radius: 12px; cursor: pointer;">
-            CONTINUE<br><span style="font-size: 14px; color: #aaa;">Swap tool, then press to resume</span>
+    <div id="continueOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;" onclick="if(event.target===this)hideContinue()">
+        <button onclick="macroContinue(); hideContinue();" style="padding: 80px 160px; font-size: 72px; font-weight: bold; background: #2a6a2a; border: 6px solid #4a9a4a; color: #fff; border-radius: 24px; cursor: pointer; box-shadow: 0 0 60px rgba(0,255,0,0.3); text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
+            CONTINUE<br><span style="font-size: 24px; color: #aaa;">Swap tool, then press to resume</span>
         </button>
     </div>
 
