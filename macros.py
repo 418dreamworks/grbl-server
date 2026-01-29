@@ -283,8 +283,19 @@ class MacroEngine:
         await self.grbl.send_command(gcode)
 
     async def _wait_idle(self, timeout: float = 30.0):
-        """Wait for machine to reach Idle state."""
+        """Wait for machine to reach Idle state after movement completes."""
         start = time.time()
+
+        # First, wait for machine to start moving (leave Idle state)
+        # This prevents returning immediately before the move even starts
+        while time.time() - start < 2.0:  # Max 2 sec to start moving
+            if self.cancel_flag:
+                raise Exception('Macro cancelled')
+            if self.grbl.status.state != 'Idle':
+                break  # Machine started moving
+            await asyncio.sleep(0.05)
+
+        # Now wait for machine to finish (return to Idle)
         while time.time() - start < timeout:
             if self.cancel_flag:
                 raise Exception('Macro cancelled')
