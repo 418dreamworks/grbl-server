@@ -850,6 +850,7 @@ class GrblServer:
         elif msg_type == 'realtime':
             byte = msg.get('byte', 0)
             if isinstance(byte, int):
+                print(f'[WS] Realtime command: 0x{byte:02X}')
                 self.grbl.send_realtime(bytes([byte]))
 
         elif msg_type == 'unlock':

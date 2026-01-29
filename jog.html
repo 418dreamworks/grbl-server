@@ -261,7 +261,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.031</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.032</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1231,15 +1231,16 @@
 
         function spindleOverride(delta) {
             if (!connected) return;
-            if (!spindleRunning) return; // Can't override if spindle is off
+
+            debugLog('spindleOverride(' + delta + ') spindleRunning=' + spindleRunning + ' currentOverride=' + currentSpindleOverride, 'info');
 
             let byte;
             let newOverride = currentSpindleOverride;
 
             if (delta === 10) { byte = 0x9A; newOverride = Math.min(200, currentSpindleOverride + 10); }
-            else if (delta === -10) { newOverride = currentSpindleOverride - 10; byte = 0x9B; }
+            else if (delta === -10) { byte = 0x9B; newOverride = Math.max(10, currentSpindleOverride - 10); }
             else if (delta === 1) { byte = 0x9C; newOverride = Math.min(200, currentSpindleOverride + 1); }
-            else if (delta === -1) { newOverride = currentSpindleOverride - 1; byte = 0x9D; }
+            else if (delta === -1) { byte = 0x9D; newOverride = Math.max(10, currentSpindleOverride - 1); }
 
             // Going below 10% means stop spindle
             if (newOverride < 10) {
@@ -1259,7 +1260,8 @@
             }
 
             currentSpindleOverride = newOverride;
-            if (byte) sendRealtime(byte);
+            debugLog('Sending realtime 0x' + byte.toString(16) + ' newOverride=' + newOverride, 'info');
+            sendRealtime(byte);
             updateSpindleDisplay();
         }
 
