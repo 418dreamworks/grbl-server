@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.046</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.047</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -445,7 +445,12 @@
                 </div>
                 <!-- Debug spindle test -->
                 <div>
-                    <button id="debugSpindleBtn" onclick="debugSpindleTest()" style="width: 100%; padding: 8px; background: #4a2a2a; border-color: #7a3a3a; font-size: 11px;">Debug Spindle</button>
+                    <button id="debugSpindleBtn" onclick="debugSpindleTest()" style="width: 100%; padding: 12px; background: #4a2a2a; border-color: #7a3a3a; font-size: 12px; text-align: left; font-family: monospace; white-space: pre; line-height: 1.4;">Debug Spindle
+1. M3 S10000 (wait 10s)
+2. -10% override
+3. G1 Z-1 F10 (6s move)
+4. -10% override
+5. G1 Z+1 F10 (6s move)</button>
                 </div>
             </div>
         </div>
@@ -1400,9 +1405,9 @@
             sendRealtime(0x99);
 
             // M3 S10000
-            debugLog('> M3 S10000', 'sent');
+            debugLog('> M3 S10000 (waiting 10s for spindle)', 'sent');
             cmd('M3 S10000');
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 10000));
 
             // -10%
             debugLog('> 0x9B (-10%)', 'sent');
