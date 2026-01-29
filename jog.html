@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.049</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.050</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -699,11 +699,18 @@
             switch (msg.type) {
                 case 'status':       handleStatus(msg); break;
                 case 'serial_read':
-                    // Only show status lines that have Ov: (useful info)
-                    if (msg.line.startsWith('<') && msg.line.includes('Ov:')) {
-                        document.getElementById('spRaw').textContent = msg.line;
-                        if (showStatusLog) debugLog('< ' + msg.line);
-                    } else if (!msg.line.startsWith('<')) {
+                    // Show all lines EXCEPT position-only status (no FS:, Ov:, Pn:, etc.)
+                    if (msg.line.startsWith('<')) {
+                        // It's a status line - check if it has useful info beyond just MPos
+                        const hasUsefulInfo = msg.line.includes('FS:') || msg.line.includes('Ov:') ||
+                                             msg.line.includes('Pn:') || msg.line.includes('WCO:') ||
+                                             msg.line.includes('Bf:') || msg.line.includes('Ln:');
+                        if (hasUsefulInfo) {
+                            document.getElementById('spRaw').textContent = msg.line;
+                            debugLog('< ' + msg.line);
+                        }
+                        // Position-only status lines are silently ignored
+                    } else {
                         // Non-status lines always show
                         debugLog('< ' + msg.line);
                     }
