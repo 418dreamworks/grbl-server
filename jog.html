@@ -285,7 +285,7 @@
     <div class="status-bar">
         <div class="status-row">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.013</span>
+                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.014</span>
                 <span class="machine-state" id="machineState">DISCONNECTED</span>
                 <!-- Port selector -->
                 <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -341,6 +341,13 @@
                 <span class="unit clickable" onclick="toggleUnits()" id="unitWork">mm</span>
             </div>
             <span id="spindleRPM" style="font-size: 20px; font-weight: bold; white-space: nowrap;"><span style="display:inline-block;width:50px;text-align:right;">--</span> <span style="display:inline-block;width:55px;">RPM</span></span>
+            <div style="display: flex; gap: 4px; align-items: center;">
+                <button id="spindleOnBtn" onclick="spindleOn()" class="spindle-off" style="min-width: auto; padding: 4px 10px; font-size: 13px;">ON</button>
+                <button onclick="spindleOff()" style="min-width: auto; padding: 4px 10px; font-size: 13px; background: #4a2a2a; border-color: #6a3a3a;">OFF</button>
+                <button onclick="setSpindleSpeed(9000)" style="min-width: auto; padding: 4px 8px; font-size: 12px;">9K</button>
+                <button onclick="setSpindleSpeed(15000)" style="min-width: auto; padding: 4px 8px; font-size: 12px;">15K</button>
+                <button onclick="setSpindleSpeed(24000)" style="min-width: auto; padding: 4px 8px; font-size: 12px;">24K</button>
+            </div>
             <div style="display: flex; gap: 2px; align-items: center;">
                 <button onclick="spindleOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
                 <button onclick="spindleOverride(-1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-1%</button>
@@ -703,10 +710,13 @@
 
             // Spindle RPM
             if (msg.spindle_speed !== undefined) {
-                lastSpindleSpeed = msg.spindle_speed;
+                if (msg.spindle_speed > 0) lastSpindleSpeed = msg.spindle_speed;
                 document.getElementById('spindleRPM').innerHTML =
                     '<span style="display:inline-block;width:50px;text-align:right;">' + (msg.spindle_speed || 0) +
                     '</span> <span style="display:inline-block;width:55px;">RPM</span>';
+                // Update spindle running state
+                spindleRunning = msg.spindle_speed > 0;
+                updateSpindleButton();
             }
 
             // Feed rate
@@ -1029,6 +1039,40 @@
             else if (delta === -1) { byte = 0x9D; currentSpindleOverride = Math.max(10, currentSpindleOverride - 1); }
             if (byte) sendRealtime(byte);
             document.getElementById('spindleOverride').textContent = currentSpindleOverride + '%';
+        }
+
+        let spindleRunning = false;
+        function spindleOn() {
+            if (!connected) return;
+            cmd('M3 S' + lastSpindleSpeed);
+            spindleRunning = true;
+            updateSpindleButton();
+        }
+
+        function spindleOff() {
+            if (!connected) return;
+            cmd('M5');
+            spindleRunning = false;
+            updateSpindleButton();
+        }
+
+        function setSpindleSpeed(rpm) {
+            if (!connected) return;
+            lastSpindleSpeed = rpm;
+            if (spindleRunning) {
+                cmd('S' + rpm);
+            }
+        }
+
+        function updateSpindleButton() {
+            const btn = document.getElementById('spindleOnBtn');
+            if (spindleRunning) {
+                btn.classList.remove('spindle-off');
+                btn.classList.add('spindle-on');
+            } else {
+                btn.classList.remove('spindle-on');
+                btn.classList.add('spindle-off');
+            }
         }
 
         // ========== JOB CONTROL ==========
