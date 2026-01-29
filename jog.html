@@ -252,6 +252,41 @@
             font-size: 12px;
             font-family: monospace;
         }
+
+        /* Console + Status Panel wrapper */
+        .console-wrapper {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 8px;
+        }
+        .console-wrapper .debug-console {
+            flex: 3;
+            grid-column: auto;
+        }
+        .status-panel {
+            flex: 1;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 8px;
+            min-width: 200px;
+        }
+        .status-panel h4 {
+            margin: 0 0 8px 0;
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        .status-panel .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .status-panel .label { color: #666; }
+        .status-panel .value { color: #0f0; }
+        .status-panel .section { margin-bottom: 12px; }
     </style>
 </head>
 <body>
@@ -261,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.039</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.040</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -431,21 +466,43 @@
         </div>
     </div>
 
-    <!-- Debug Console -->
-    <div class="debug-console">
-        <div class="debug-header">
-            <span onclick="toggleDebug()" style="cursor:pointer;">Debug Console</span>
-            <input type="text" id="gcodeInput" placeholder="G-code..."
-                   style="flex: 1; margin: 0 8px; padding: 4px 8px; background: #222; border: 1px solid #444;
-                          border-radius: 4px; color: #fff; font-family: monospace; font-size: 12px;"
-                   onkeydown="if(event.key==='Enter'){sendGcodeInput();event.preventDefault();}">
-            <button onclick="sendGcodeInput()" style="padding: 4px 12px; font-size: 11px; margin-right: 8px;">Send</button>
-            <button onclick="copyDebugLog(event)" style="padding:2px 8px;font-size:11px;margin-right:4px;">Copy</button>
-            <button id="statusToggle" onclick="toggleStatusLog()" style="padding:2px 8px;font-size:11px;margin-right:8px;background:#2a4a2a;">Status</button>
-            <span id="debugToggle" onclick="toggleDebug()" style="cursor:pointer;">&#x25B2;</span>
+    <!-- Console + Status Panel -->
+    <div class="console-wrapper">
+        <div class="debug-console">
+            <div class="debug-header">
+                <span onclick="toggleDebug()" style="cursor:pointer;">Console</span>
+                <input type="text" id="gcodeInput" placeholder="G-code..."
+                       style="flex: 1; margin: 0 8px; padding: 4px 8px; background: #222; border: 1px solid #444;
+                              border-radius: 4px; color: #fff; font-family: monospace; font-size: 12px;"
+                       onkeydown="if(event.key==='Enter'){sendGcodeInput();event.preventDefault();}">
+                <button onclick="sendGcodeInput()" style="padding: 4px 12px; font-size: 11px; margin-right: 8px;">Send</button>
+                <button onclick="copyDebugLog(event)" style="padding:2px 8px;font-size:11px;margin-right:4px;">Copy</button>
+                <span id="debugToggle" onclick="toggleDebug()" style="cursor:pointer;">&#x25B2;</span>
+            </div>
+            <div class="debug-content open" id="debugContent">
+                <div id="debugLog"></div>
+            </div>
         </div>
-        <div class="debug-content open" id="debugContent">
-            <div id="debugLog"></div>
+        <div class="status-panel">
+            <div class="section">
+                <h4>Controller Status</h4>
+                <div class="row"><span class="label">State:</span><span class="value" id="spState">--</span></div>
+            </div>
+            <div class="section">
+                <h4>Overrides (Ov:)</h4>
+                <div class="row"><span class="label">Feed:</span><span class="value" id="spFeedOv">--</span></div>
+                <div class="row"><span class="label">Rapid:</span><span class="value" id="spRapidOv">--</span></div>
+                <div class="row"><span class="label">Spindle:</span><span class="value" id="spSpindleOv">--</span></div>
+            </div>
+            <div class="section">
+                <h4>Actual (FS:)</h4>
+                <div class="row"><span class="label">Feed:</span><span class="value" id="spFeed">-- mm/min</span></div>
+                <div class="row"><span class="label">Spindle:</span><span class="value" id="spSpindle">-- RPM</span></div>
+            </div>
+            <div class="section">
+                <h4>Last Raw Status</h4>
+                <div id="spRaw" style="font-size:10px; color:#666; word-break:break-all;">--</div>
+            </div>
         </div>
     </div>
 
@@ -637,7 +694,12 @@
         function handleMessage(msg) {
             switch (msg.type) {
                 case 'status':       handleStatus(msg); break;
-                case 'serial_read':  if (showStatusLog || !msg.line.startsWith('<')) debugLog('< ' + msg.line); break;
+                case 'serial_read':
+                    if (msg.line.startsWith('<')) {
+                        document.getElementById('spRaw').textContent = msg.line;
+                    }
+                    if (showStatusLog || !msg.line.startsWith('<')) debugLog('< ' + msg.line);
+                    break;
                 case 'serial_write': debugLog('> ' + msg.line, 'sent'); break;
                 case 'response':     handleResponse(msg); break;
                 case 'connected':    handleConnected(msg); break;
@@ -764,6 +826,26 @@
                 const displayFeed = currentUnit === 'in' ? Math.round(feed / 25.4) : Math.round(feed);
                 document.getElementById('machineSpeedValue').textContent = displayFeed;
                 document.getElementById('machineSpeedUnit').textContent = unit + '/min';
+            }
+
+            // Update status panel
+            if (msg.state) {
+                document.getElementById('spState').textContent = msg.state.toUpperCase();
+            }
+            if (msg.feed_override !== undefined) {
+                document.getElementById('spFeedOv').textContent = msg.feed_override + '%';
+            }
+            if (msg.rapid_override !== undefined) {
+                document.getElementById('spRapidOv').textContent = msg.rapid_override + '%';
+            }
+            if (msg.spindle_override !== undefined) {
+                document.getElementById('spSpindleOv').textContent = msg.spindle_override + '%';
+            }
+            if (msg.feed_rate !== undefined) {
+                document.getElementById('spFeed').textContent = Math.round(msg.feed_rate) + ' mm/min';
+            }
+            if (msg.spindle_speed !== undefined) {
+                document.getElementById('spSpindle').textContent = msg.spindle_speed + ' RPM';
             }
 
             updateButtonStates();
