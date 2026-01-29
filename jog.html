@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.044</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.045</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1401,9 +1401,9 @@
             sendRealtime(0x90);
             sendRealtime(0x99);
 
-            // M3 S12000
-            debugLog('> M3 S12000', 'sent');
-            cmd('M3 S12000');
+            // M3 S10000
+            debugLog('> M3 S10000', 'sent');
+            cmd('M3 S10000');
             await new Promise(r => setTimeout(r, 2000));
 
             // -10%
@@ -1428,12 +1428,7 @@
             cmd('G90');
             await new Promise(r => setTimeout(r, 7000));
 
-            // M5
-            debugLog('> M5', 'sent');
-            sendRealtime(0x99);  // Reset before M5
-            cmd('M5');
-
-            debugLog('=== DEBUG SPINDLE TEST COMPLETE ===', 'info');
+            debugLog('=== DEBUG SPINDLE TEST COMPLETE (spindle still running) ===', 'info');
             btn.style.background = '#4a2a2a';
             btn.textContent = 'Debug Spindle';
             debugSpindleRunning = false;
