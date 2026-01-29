@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.043</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.044</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1344,8 +1344,9 @@
 
             // Going below 10% means stop spindle
             if (newOverride < 10) {
-                // Turn off spindle
+                // Turn off spindle and reset override for next startup
                 cmd('M5');
+                sendRealtime(0x99);  // Reset spindle override to 100%
                 spindleRunning = false;
                 currentSpindleOverride = 100;
                 updateSpindleDisplay();
@@ -1362,6 +1363,10 @@
             currentSpindleOverride = newOverride;
             debugLog('Sending realtime 0x' + byte.toString(16) + ' newOverride=' + newOverride, 'info');
             sendRealtime(byte);
+            // Re-send S command to force PWM update (realtime override alone doesn't update PWM)
+            if (spindleRunning && lastSpindleSpeed > 0) {
+                cmd('S' + lastSpindleSpeed);
+            }
             updateSpindleDisplay();
         }
 
