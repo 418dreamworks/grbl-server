@@ -633,77 +633,133 @@ class FileStreamer:
 
 def analyze_gcode(lines: List[str]) -> Dict[str, Any]:
     """
-    Analyze G-code lines for key parameters.
+    Analyze G-code lines for key parameters and timing.
 
     Returns dict with:
-    - max_feed: Maximum XY feed rate (F value during G1 moves without Z or with Z going up)
-    - max_plunge: Maximum plunge rate (F value during G1 moves with Z going down)
-    - min_spindle: Minimum spindle speed (S value)
-    - max_spindle: Maximum spindle speed (S value)
+    - max_feed: Maximum XY feed rate
+    - max_plunge: Maximum plunge rate
+    - min_spindle, max_spindle: Spindle speed range
     - tool_changes: Count of M6 commands
+    - tool_change_lines: List of line numbers where M6 occurs (1-indexed)
+    - cumulative_time: List of cumulative machining time (minutes) at each line
+    - total_time: Total machining time in minutes
     """
+    import math
+
     max_feed = 0.0
     max_plunge = 0.0
     min_spindle = float('inf')
     max_spindle = 0.0
     tool_changes = 0
+    tool_change_lines = []
 
-    current_f = 0.0
-    current_z = 0.0
+    # Position tracking
+    pos_x, pos_y, pos_z = 0.0, 0.0, 0.0
+    current_f = 1000.0  # Default feed rate
     last_z = 0.0
+    is_g1_mode = False  # Track if we're in G1 mode
+
+    # Time tracking - cumulative time at each line
+    cumulative_time = []
+    total_time = 0.0
 
     # Regex patterns
     f_pattern = re.compile(r'F([\d.]+)', re.IGNORECASE)
+    x_pattern = re.compile(r'X([-\d.]+)', re.IGNORECASE)
+    y_pattern = re.compile(r'Y([-\d.]+)', re.IGNORECASE)
     z_pattern = re.compile(r'Z([-\d.]+)', re.IGNORECASE)
     s_pattern = re.compile(r'S([\d.]+)', re.IGNORECASE)
 
-    for line in lines:
+    for line_idx, line in enumerate(lines):
         upper = line.upper().strip()
 
         # Skip comments
         if upper.startswith(';') or upper.startswith('('):
+            cumulative_time.append(total_time)
             continue
+
+        # Track modal G-code state
+        if 'G0' in upper or 'G00' in upper:
+            is_g1_mode = False
+        if 'G1' in upper or 'G01' in upper:
+            is_g1_mode = True
 
         # Extract F value if present
         f_match = f_pattern.search(line)
         if f_match:
             current_f = float(f_match.group(1))
 
-        # Extract Z value if present
+        # Extract target positions
+        new_x, new_y, new_z = pos_x, pos_y, pos_z
+        x_match = x_pattern.search(line)
+        y_match = y_pattern.search(line)
         z_match = z_pattern.search(line)
+        if x_match:
+            new_x = float(x_match.group(1))
+        if y_match:
+            new_y = float(y_match.group(1))
         if z_match:
-            last_z = current_z
-            current_z = float(z_match.group(1))
+            last_z = pos_z
+            new_z = float(z_match.group(1))
 
         # Extract S value if present
         s_match = s_pattern.search(line)
         if s_match:
             s_val = float(s_match.group(1))
-            if s_val > 0:  # Only track non-zero spindle speeds
+            if s_val > 0:
                 min_spindle = min(min_spindle, s_val)
                 max_spindle = max(max_spindle, s_val)
 
-        # Check for G1 moves to categorize feed vs plunge
-        if 'G1' in upper or 'G01' in upper:
-            if z_match:
-                # Z is changing
-                if current_z < last_z:
-                    # Plunging down
-                    max_plunge = max(max_plunge, current_f)
-                else:
-                    # Retracting up or XY move with Z
-                    max_feed = max(max_feed, current_f)
+        # Calculate time for G1 moves (G0 rapids are assumed instant for estimation)
+        if is_g1_mode or 'G1' in upper or 'G01' in upper:
+            # Calculate 3D distance
+            dx = new_x - pos_x
+            dy = new_y - pos_y
+            dz = new_z - pos_z
+            distance = math.sqrt(dx*dx + dy*dy + dz*dz)
+
+            # Time = distance / feed_rate (feed is mm/min, so time is in minutes)
+            if current_f > 0 and distance > 0:
+                move_time = distance / current_f
+                total_time += move_time
+
+            # Track max feed/plunge
+            if z_match and new_z < last_z:
+                max_plunge = max(max_plunge, current_f)
             else:
-                # XY only move
                 max_feed = max(max_feed, current_f)
+
+        # Update position
+        pos_x, pos_y, pos_z = new_x, new_y, new_z
+
+        # Store cumulative time at this line
+        cumulative_time.append(total_time)
 
         # Count tool changes
         if 'M6' in upper or 'M06' in upper:
             tool_changes += 1
+            tool_change_lines.append(line_idx + 1)
 
     # Handle case where no spindle commands found
     if min_spindle == float('inf'):
         min_spindle = 0
+
+    # Compute time to next tool change for each line (reverse cumulative)
+    # time_to_next_tc[i] = time from line i to the next M6 (or end of file)
+    time_to_next_tc = []
+    tc_times = [cumulative_time[ln - 1] if ln - 1 < len(cumulative_time) else total_time
+                for ln in tool_change_lines]
+    tc_times.append(total_time)  # End of file as final "tool change"
+
+    tc_idx = 0
+    for i, ct in enumerate(cumulative_time):
+        line_num = i + 1
+        # Move to next tool change if we've passed the current one
+        while tc_idx < len(tool_change_lines) and line_num > tool_change_lines[tc_idx]:
+            tc_idx += 1
+        # Time remaining to next tool change
+        next_tc_time = tc_times[tc_idx] if tc_idx < len(tc_times) else total_time
+        time_to_next_tc.append(next_tc_time - ct)
 
     return {
         'max_feed': max_feed,
@@ -711,6 +767,9 @@ def analyze_gcode(lines: List[str]) -> Dict[str, Any]:
         'min_spindle': min_spindle,
         'max_spindle': max_spindle,
         'tool_changes': tool_changes,
+        'tool_change_lines': tool_change_lines,
+        'time_to_next_tc': time_to_next_tc,
+        'total_time': total_time,
     }
 
 

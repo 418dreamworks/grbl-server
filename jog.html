@@ -285,7 +285,7 @@
     <div class="status-bar">
         <div class="status-row">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.017</span>
+                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.018</span>
                 <span class="machine-state" id="machineState">DISCONNECTED</span>
                 <!-- Port selector -->
                 <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -299,6 +299,8 @@
                 <span id="fileStats" style="font-size: 11px; color: #888; font-family: monospace;"></span>
                 <!-- Recovery info -->
                 <span class="recovery-info" id="recoveryInfo">Safe: --</span>
+                <!-- Tool change time estimate -->
+                <span id="toolChangeEta" style="font-size: 11px; color: #f90; font-family: monospace;"></span>
             </div>
             <div class="btn-container" style="display: flex; flex-direction: column; gap: 4px; width: 468px;">
                 <div id="currentLine" style="display:none;">--</div>
@@ -564,6 +566,11 @@
         let lastSafeGcode = '';
         let showStatusLog = true;
         let macroRunning = false;
+
+        // Tool change time estimation
+        let toolChangeLines = [];
+        let timeToNextTC = [];  // Precomputed time remaining to next tool change for each line
+        let totalFileTime = 0;
 
         // ========== WEBSOCKET CONNECTION ==========
         let ws;
@@ -868,6 +875,53 @@
                 }
                 if (a.tool_changes > 0) stats.push('T' + a.tool_changes);
                 document.getElementById('fileStats').textContent = stats.join(' | ');
+                // Store tool change data for time estimation
+                toolChangeLines = a.tool_change_lines || [];
+                timeToNextTC = a.time_to_next_tc || [];
+                totalFileTime = a.total_time || 0;
+            }
+
+            // Update tool change time estimate
+            updateToolChangeEstimate(msg.current);
+        }
+
+        function updateToolChangeEstimate(currentLine) {
+            const etaEl = document.getElementById('toolChangeEta');
+            if (!timeToNextTC.length || currentLine < 1 || currentLine > timeToNextTC.length) {
+                etaEl.textContent = '';
+                return;
+            }
+
+            // Get precomputed time remaining to next tool change (in minutes)
+            const baseTime = timeToNextTC[currentLine - 1];
+
+            // Adjust by feed override (e.g., 80% feed = time takes longer)
+            const adjustedTime = baseTime / (currentFeedOverride / 100);
+
+            if (adjustedTime <= 0) {
+                etaEl.textContent = '';
+                return;
+            }
+
+            // Format as mm:ss
+            const mins = Math.floor(adjustedTime);
+            const secs = Math.floor((adjustedTime - mins) * 60);
+            const timeStr = mins + ':' + secs.toString().padStart(2, '0');
+
+            // Find which tool change we're approaching
+            let nextTC = 1;
+            for (let i = 0; i < toolChangeLines.length; i++) {
+                if (toolChangeLines[i] > currentLine) {
+                    nextTC = i + 1;
+                    break;
+                }
+                nextTC = i + 2;  // Past last TC, show time to end
+            }
+
+            if (nextTC <= toolChangeLines.length) {
+                etaEl.textContent = '~' + timeStr + ' to T' + nextTC;
+            } else {
+                etaEl.textContent = '~' + timeStr + ' to end';
             }
         }
 
