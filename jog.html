@@ -261,7 +261,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.033</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.034</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -741,11 +741,12 @@
                 document.getElementById('spindleOverride').textContent = msg.spindle_override + '%';
             }
 
-            // Spindle RPM
+            // Spindle RPM - trust what controller reports
             if (msg.spindle_speed !== undefined) {
                 if (msg.spindle_speed > 0) lastSpindleSpeed = msg.spindle_speed;
                 document.getElementById('spindleRPMValue').textContent = msg.spindle_speed || 0;
-                // Don't override spindleRunning from status - track it via commands only
+                // Track spindle state from controller status
+                spindleRunning = msg.spindle_speed > 0;
                 updateSpindleDisplay();
             }
 
