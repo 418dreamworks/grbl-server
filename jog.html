@@ -449,7 +449,8 @@
     <div class="debug-console">
         <div class="debug-header">
             <span onclick="toggleDebug()" style="flex:1;cursor:pointer;">Debug Console</span>
-            <button onclick="copyDebugLog(event)" style="padding:2px 8px;font-size:11px;margin-right:8px;">Copy</button>
+            <button onclick="copyDebugLog(event)" style="padding:2px 8px;font-size:11px;margin-right:4px;">Copy</button>
+            <button id="statusToggle" onclick="toggleStatusLog()" style="padding:2px 8px;font-size:11px;margin-right:8px;background:#2a4a2a;">Status</button>
             <span id="debugToggle" onclick="toggleDebug()" style="cursor:pointer;">&#x25B2;</span>
         </div>
         <div class="debug-content open" id="debugContent">
@@ -525,6 +526,7 @@
         let fileLoaded = false;
         let lastSafeLine = null;
         let lastSafeGcode = '';
+        let showStatusLog = true;
 
         // ========== WEBSOCKET CONNECTION ==========
         let ws;
@@ -581,7 +583,7 @@
         function handleMessage(msg) {
             switch (msg.type) {
                 case 'status':       handleStatus(msg); break;
-                case 'serial_read':  debugLog('< ' + msg.line); break;
+                case 'serial_read':  if (showStatusLog || !msg.line.startsWith('<')) debugLog('< ' + msg.line); break;
                 case 'serial_write': debugLog('> ' + msg.line, 'sent'); break;
                 case 'response':     handleResponse(msg); break;
                 case 'connected':    handleConnected(msg); break;
@@ -1190,6 +1192,12 @@
             const toggle = document.getElementById('debugToggle');
             content.classList.toggle('open');
             toggle.textContent = content.classList.contains('open') ? '\u25B2' : '\u25BC';
+        }
+
+        function toggleStatusLog() {
+            showStatusLog = !showStatusLog;
+            const btn = document.getElementById('statusToggle');
+            btn.style.background = showStatusLog ? '#2a4a2a' : '#4a2a2a';
         }
 
         function copyDebugLog(e) {

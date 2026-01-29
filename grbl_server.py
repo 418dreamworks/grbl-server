@@ -91,6 +91,7 @@ class GrblConnection:
         self.poll_task: Optional[asyncio.Task] = None
         self.broadcast_callback = None
         self.wco_cached: Dict[str, float] = {'x': 0, 'y': 0, 'z': 0, 'a': 0}
+        self.g28_pos: Dict[str, float] = {'x': 0, 'y': 0, 'z': 0, 'a': 0}
 
     async def connect(self, port: str, baud: int = DEFAULT_BAUD_RATE) -> bool:
         """Connect to serial port using DTR-safe method."""
@@ -114,8 +115,9 @@ class GrblConnection:
             self.read_task = asyncio.create_task(self._read_loop())
             self.poll_task = asyncio.create_task(self._poll_status())
 
-            # Request settings
+            # Request settings and stored positions
             await self.send_command('$$')
+            await self.send_command('$#')
 
             print(f'[GRBL] Connected to {port}')
             return True
@@ -213,6 +215,18 @@ class GrblConnection:
         # Probe result: [PRB:x,y,z,a:1]
         if line.startswith('[PRB:'):
             self._parse_probe(line)
+            return
+
+        # G28 stored position: [G28:x,y,z,a]
+        if line.startswith('[G28:'):
+            coords = line[5:-1].split(',')
+            self.g28_pos = {
+                'x': float(coords[0]) if len(coords) > 0 else 0,
+                'y': float(coords[1]) if len(coords) > 1 else 0,
+                'z': float(coords[2]) if len(coords) > 2 else 0,
+                'a': float(coords[3]) if len(coords) > 3 else 0,
+            }
+            print(f'[GRBL] G28 position: X{self.g28_pos["x"]} Y{self.g28_pos["y"]} Z{self.g28_pos["z"]}')
             return
 
         # Settings: $N=value (already broadcast via serial_read above)

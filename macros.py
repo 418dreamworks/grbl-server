@@ -65,8 +65,9 @@ class MacroEngine:
             # G10 L20 P1 Z-1
             await self._send_and_log('G10 L20 P1 Z-1')
 
-            # G28 X Y Z only (not A)
-            await self._send_and_log('G28 X0 Y0 Z0')
+            # Go to G28 position (X Y Z only, not A) using queried coordinates
+            g28 = self.grbl.g28_pos
+            await self._send_and_log(f'G53 G0 X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
             await self._wait_idle()
 
             # G90
