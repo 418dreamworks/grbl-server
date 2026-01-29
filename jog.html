@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.040</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.041</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1387,6 +1387,16 @@
             btn.textContent = 'Running...';
 
             debugLog('=== DEBUG SPINDLE TEST START ===', 'info');
+
+            // Reset all overrides to 100% first
+            debugLog('Resetting overrides to 100%', 'info');
+            sendRealtime(0x90);  // Feed override reset to 100%
+            sendRealtime(0x99);  // Spindle override reset to 100%
+            currentFeedOverride = 100;
+            currentSpindleOverride = 100;
+            document.getElementById('feedRate').textContent = '100%';
+            updateSpindleDisplay();
+
             debugLog('Step 1: M3 S12000 + G1 Z-5 F6 (slow move during test)', 'info');
             debugLog('> M3 S12000', 'sent');
             cmd('M3 S12000');
