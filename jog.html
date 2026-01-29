@@ -261,7 +261,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.034</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.035</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -565,7 +565,7 @@
         let fileLoaded = false;
         let lastSafeLine = null;
         let lastSafeGcode = '';
-        let showStatusLog = true;
+        let showStatusLog = false;  // Hide status spam by default, toggle with button
         let macroRunning = false;
 
         // Tool change time estimation
@@ -741,10 +741,12 @@
                 document.getElementById('spindleOverride').textContent = msg.spindle_override + '%';
             }
 
-            // Spindle RPM - trust what controller reports
+            // Spindle RPM - calculate actual from programmed speed × override %
             if (msg.spindle_speed !== undefined) {
                 if (msg.spindle_speed > 0) lastSpindleSpeed = msg.spindle_speed;
-                document.getElementById('spindleRPMValue').textContent = msg.spindle_speed || 0;
+                // GRBL reports programmed speed, multiply by override to get actual
+                const actualRPM = Math.round(msg.spindle_speed * currentSpindleOverride / 100);
+                document.getElementById('spindleRPMValue').textContent = actualRPM || 0;
                 // Track spindle state from controller status
                 spindleRunning = msg.spindle_speed > 0;
                 updateSpindleDisplay();
