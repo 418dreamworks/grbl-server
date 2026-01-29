@@ -261,7 +261,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.038</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.039</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1306,9 +1306,13 @@
 
             debugLog('=== DEBUG SPINDLE TEST START ===', 'info');
             debugLog('Step 1: M3 S12000 + G1 Z-5 F6 (slow move during test)', 'info');
+            debugLog('> M3 S12000', 'sent');
             cmd('M3 S12000');
+            debugLog('> G91', 'sent');
             cmd('G91');  // Relative mode
+            debugLog('> G1 Z-5 F6', 'sent');
             cmd('G1 Z-5 F6');  // Move Z down 5mm at F6 (6mm/min = 50 seconds)
+            debugLog('> G90', 'sent');
             cmd('G90');  // Back to absolute
 
             for (let pct = 100; pct >= 10; pct -= 10) {
