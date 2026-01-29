@@ -908,7 +908,11 @@ class GrblServer:
             def log_message(handler_self, format, *args):
                 pass  # Suppress HTTP logs
 
-        with socketserver.TCPServer(('0.0.0.0', self.http_port), Handler) as httpd:
+        # Enable SO_REUSEADDR to allow quick restart
+        class ReusableTCPServer(socketserver.TCPServer):
+            allow_reuse_address = True
+
+        with ReusableTCPServer(('0.0.0.0', self.http_port), Handler) as httpd:
             print(f'[HTTP] Serving on http://0.0.0.0:{self.http_port}')
             httpd.serve_forever()
 
