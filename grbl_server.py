@@ -45,6 +45,66 @@ DEFAULT_SERIAL_PORT = '/dev/ttyACM0'
 DEFAULT_BAUD_RATE = 115200
 STATUS_POLL_INTERVAL = 0.2  # 200ms
 RECOVERY_SAVE_INTERVAL = 100  # Save recovery every N lines
+LOG_DIR = 'logs'
+LOG_MAX_AGE_DAYS = 7
+
+# ============================================================
+# SERIAL LOGGER
+# ============================================================
+
+class SerialLogger:
+    """Logs all serial communication to daily text files with auto-cleanup."""
+
+    def __init__(self, log_dir: str = LOG_DIR):
+        self.log_dir = Path(log_dir)
+        self.log_dir.mkdir(exist_ok=True)
+        self.current_file: Optional[Path] = None
+        self.current_date: str = ''
+        self._cleanup_old_logs()
+
+    def _cleanup_old_logs(self):
+        """Remove log files older than LOG_MAX_AGE_DAYS."""
+        cutoff = time.time() - (LOG_MAX_AGE_DAYS * 24 * 60 * 60)
+        removed = 0
+        for log_file in self.log_dir.glob('*.log'):
+            if log_file.stat().st_mtime < cutoff:
+                log_file.unlink()
+                removed += 1
+        if removed:
+            print(f'[Logger] Cleaned up {removed} old log files')
+
+    def _get_log_file(self) -> Path:
+        """Get current day's log file, creating new one if date changed."""
+        today = time.strftime('%Y-%m-%d')
+        if today != self.current_date:
+            self.current_date = today
+            self.current_file = self.log_dir / f'grbl_{today}.log'
+        return self.current_file
+
+    def log_receive(self, line: str):
+        """Log data received from GRBL."""
+        self._write(f'< {line}')
+
+    def log_send(self, line: str):
+        """Log data sent to GRBL."""
+        self._write(f'> {line}')
+
+    def log_realtime(self, byte_val: int):
+        """Log real-time command sent."""
+        # Map common real-time commands to readable names
+        names = {0x18: 'RESET', ord('?'): 'STATUS', ord('!'): 'HOLD', ord('~'): 'RESUME'}
+        name = names.get(byte_val, f'0x{byte_val:02X}')
+        self._write(f'>RT {name}')
+
+    def _write(self, msg: str):
+        """Write timestamped message to log file."""
+        timestamp = time.strftime('%H:%M:%S.') + f'{int(time.time() * 1000) % 1000:03d}'
+        log_file = self._get_log_file()
+        try:
+            with open(log_file, 'a') as f:
+                f.write(f'{timestamp} {msg}\n')
+        except Exception as e:
+            print(f'[Logger] Write error: {e}')
 
 # ============================================================
 # DATA CLASSES
@@ -80,7 +140,7 @@ class MachineStatus:
 class GrblConnection:
     """Manages serial connection to GRBL controller with DTR-safe handling."""
 
-    def __init__(self):
+    def __init__(self, logger: Optional[SerialLogger] = None):
         self.ser: Optional[serial.Serial] = None
         self.port: str = ''
         self.connected: bool = False
@@ -92,6 +152,7 @@ class GrblConnection:
         self.broadcast_callback = None
         self.wco_cached: Dict[str, float] = {'x': 0, 'y': 0, 'z': 0, 'a': 0}
         self.g28_pos: Dict[str, float] = {'x': 0, 'y': 0, 'z': 0, 'a': 0}
+        self.logger = logger
 
     async def connect(self, port: str, baud: int = DEFAULT_BAUD_RATE) -> bool:
         """Connect to serial port using DTR-safe method."""
@@ -181,6 +242,10 @@ class GrblConnection:
 
     async def _handle_line(self, line: str):
         """Process a line received from GRBL."""
+        # Log to file
+        if self.logger:
+            self.logger.log_receive(line)
+
         # Broadcast raw serial data
         if self.broadcast_callback:
             await self.broadcast_callback({'type': 'serial_read', 'line': line})
@@ -343,6 +408,10 @@ class GrblConnection:
         cmd = line.strip() + '\n'
         self.ser.write(cmd.encode('utf-8'))
 
+        # Log to file
+        if self.logger:
+            self.logger.log_send(line.strip())
+
         if self.broadcast_callback:
             await self.broadcast_callback({'type': 'serial_write', 'line': line.strip()})
 
@@ -360,6 +429,9 @@ class GrblConnection:
         """Send real-time command (no newline, no response expected)."""
         if self.connected and self.ser:
             self.ser.write(data)
+            # Log to file (except status polls to avoid spam)
+            if self.logger and data != b'?':
+                self.logger.log_realtime(data[0] if data else 0)
 
 # ============================================================
 # FILE STREAMER
@@ -526,7 +598,8 @@ class GrblServer:
         self.http_port = http_port
         self.ws_port = http_port + 1  # WebSocket on separate port
         self.serial_port = serial_port
-        self.grbl = GrblConnection()
+        self.logger = SerialLogger()
+        self.grbl = GrblConnection(logger=self.logger)
         self.streamer = FileStreamer(self.grbl)
         self.macros = MacroEngine(self.grbl)
         self.clients: Set = set()
