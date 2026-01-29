@@ -626,6 +626,94 @@ class FileStreamer:
         self._save_recovery()
         print('[Streamer] Stopped')
 
+    def analyze(self) -> Dict[str, Any]:
+        """Analyze loaded G-code for feed rates, plunge rates, and spindle speeds."""
+        return analyze_gcode(self.lines)
+
+
+def analyze_gcode(lines: List[str]) -> Dict[str, Any]:
+    """
+    Analyze G-code lines for key parameters.
+
+    Returns dict with:
+    - max_feed: Maximum XY feed rate (F value during G1 moves without Z or with Z going up)
+    - max_plunge: Maximum plunge rate (F value during G1 moves with Z going down)
+    - min_spindle: Minimum spindle speed (S value)
+    - max_spindle: Maximum spindle speed (S value)
+    - tool_changes: Count of M6 commands
+    """
+    max_feed = 0.0
+    max_plunge = 0.0
+    min_spindle = float('inf')
+    max_spindle = 0.0
+    tool_changes = 0
+
+    current_f = 0.0
+    current_z = 0.0
+    last_z = 0.0
+
+    # Regex patterns
+    f_pattern = re.compile(r'F([\d.]+)', re.IGNORECASE)
+    z_pattern = re.compile(r'Z([-\d.]+)', re.IGNORECASE)
+    s_pattern = re.compile(r'S([\d.]+)', re.IGNORECASE)
+
+    for line in lines:
+        upper = line.upper().strip()
+
+        # Skip comments
+        if upper.startswith(';') or upper.startswith('('):
+            continue
+
+        # Extract F value if present
+        f_match = f_pattern.search(line)
+        if f_match:
+            current_f = float(f_match.group(1))
+
+        # Extract Z value if present
+        z_match = z_pattern.search(line)
+        if z_match:
+            last_z = current_z
+            current_z = float(z_match.group(1))
+
+        # Extract S value if present
+        s_match = s_pattern.search(line)
+        if s_match:
+            s_val = float(s_match.group(1))
+            if s_val > 0:  # Only track non-zero spindle speeds
+                min_spindle = min(min_spindle, s_val)
+                max_spindle = max(max_spindle, s_val)
+
+        # Check for G1 moves to categorize feed vs plunge
+        if 'G1' in upper or 'G01' in upper:
+            if z_match:
+                # Z is changing
+                if current_z < last_z:
+                    # Plunging down
+                    max_plunge = max(max_plunge, current_f)
+                else:
+                    # Retracting up or XY move with Z
+                    max_feed = max(max_feed, current_f)
+            else:
+                # XY only move
+                max_feed = max(max_feed, current_f)
+
+        # Count tool changes
+        if 'M6' in upper or 'M06' in upper:
+            tool_changes += 1
+
+    # Handle case where no spindle commands found
+    if min_spindle == float('inf'):
+        min_spindle = 0
+
+    return {
+        'max_feed': max_feed,
+        'max_plunge': max_plunge,
+        'min_spindle': min_spindle,
+        'max_spindle': max_spindle,
+        'tool_changes': tool_changes,
+    }
+
+
 # ============================================================
 # WEBSOCKET SERVER
 # ============================================================
@@ -736,12 +824,14 @@ class GrblServer:
             filename = msg.get('filename', 'unknown.nc')
             content = msg.get('content', '')
             self.streamer.load_file(filename, content)
+            analysis = self.streamer.analyze()
             await ws.send(json.dumps({
                 'type': 'file_status',
                 'filename': filename,
                 'current': 0,
                 'total': self.streamer.total_lines,
                 'percent': 0,
+                'analysis': analysis,
             }))
 
         elif msg_type == 'file_start':

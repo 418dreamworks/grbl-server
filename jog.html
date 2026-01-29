@@ -285,7 +285,7 @@
     <div class="status-bar">
         <div class="status-row">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.012</span>
+                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.013</span>
                 <span class="machine-state" id="machineState">DISCONNECTED</span>
                 <!-- Port selector -->
                 <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -295,6 +295,8 @@
                 <!-- File info -->
                 <span class="file-name" id="fileName">No file loaded</span>
                 <span class="progress" id="progress">--</span>
+                <!-- File stats (feed/plunge/spindle) -->
+                <span id="fileStats" style="font-size: 11px; color: #888; font-family: monospace;"></span>
                 <!-- Recovery info -->
                 <span class="recovery-info" id="recoveryInfo">Safe: --</span>
             </div>
@@ -370,7 +372,6 @@
     <!-- Left Column -->
     <div class="left-col">
         <div class="section">
-            <h2>RAPID</h2>
             <div class="xy-grid">
                 <button onclick="gotoXY(workMaxX-MARGIN, MARGIN)">&#x2196;</button>
                 <button onclick="gotoXY(workMaxX/2, MARGIN)">&#x2191;</button>
@@ -389,7 +390,6 @@
             </div>
         </div>
         <div class="section" style="margin-top: 8px; flex: 1; display: flex; flex-direction: column;">
-            <h2>JOG</h2>
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; flex: 1;">
                 <button onclick="jog('X', 1)" style="font-size:11px; min-width:0; min-height:0;">X+<span class="key">[&#x2192;]</span></button>
                 <button onclick="jog('Y', 1)" style="font-size:11px; min-width:0; min-height:0;">Y+<span class="key">[&#x2191;]</span></button>
@@ -428,14 +428,6 @@
                     <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_xy')">XY</button>
                     <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_xyz')">XYZ</button>
                 </div>
-                <!-- GCode Input -->
-                <div style="display: flex; gap: 8px;">
-                    <input type="text" id="gcodeInput" placeholder="G-code..."
-                           style="flex: 1; padding: 10px; background: #222; border: 1px solid #444;
-                                  border-radius: 4px; color: #fff; font-family: monospace; font-size: 14px;"
-                           onkeydown="if(event.key==='Enter'){sendGcodeInput();event.preventDefault();}">
-                    <button onclick="sendGcodeInput()" style="padding: 10px 16px;">Send</button>
-                </div>
                 <!-- Status -->
                 <div>
                     <button id="debugInfo" style="width: 100%; padding: 12px; background: #3a3a3a; border-color: #555;">&#x2713; Synced</button>
@@ -456,7 +448,12 @@
     <!-- Debug Console -->
     <div class="debug-console">
         <div class="debug-header">
-            <span onclick="toggleDebug()" style="flex:1;cursor:pointer;">Debug Console</span>
+            <span onclick="toggleDebug()" style="cursor:pointer;">Debug Console</span>
+            <input type="text" id="gcodeInput" placeholder="G-code..."
+                   style="flex: 1; margin: 0 8px; padding: 4px 8px; background: #222; border: 1px solid #444;
+                          border-radius: 4px; color: #fff; font-family: monospace; font-size: 12px;"
+                   onkeydown="if(event.key==='Enter'){sendGcodeInput();event.preventDefault();}">
+            <button onclick="sendGcodeInput()" style="padding: 4px 12px; font-size: 11px; margin-right: 8px;">Send</button>
             <button onclick="copyDebugLog(event)" style="padding:2px 8px;font-size:11px;margin-right:4px;">Copy</button>
             <button id="statusToggle" onclick="toggleStatusLog()" style="padding:2px 8px;font-size:11px;margin-right:8px;background:#2a4a2a;">Status</button>
             <span id="debugToggle" onclick="toggleDebug()" style="cursor:pointer;">&#x25B2;</span>
@@ -832,6 +829,22 @@
                 lastSafeGcode = msg.last_safe_gcode || '';
                 document.getElementById('recoveryInfo').textContent = 'Safe: L' + msg.last_safe_line;
                 document.getElementById('resumeLine').placeholder = msg.last_safe_line;
+            }
+            // Display file analysis stats
+            if (msg.analysis) {
+                const a = msg.analysis;
+                let stats = [];
+                if (a.max_feed > 0) stats.push('F' + a.max_feed);
+                if (a.max_plunge > 0) stats.push('P' + a.max_plunge);
+                if (a.max_spindle > 0) {
+                    if (a.min_spindle === a.max_spindle) {
+                        stats.push('S' + a.max_spindle);
+                    } else {
+                        stats.push('S' + a.min_spindle + '-' + a.max_spindle);
+                    }
+                }
+                if (a.tool_changes > 0) stats.push('T' + a.tool_changes);
+                document.getElementById('fileStats').textContent = stats.join(' | ');
             }
         }
 
