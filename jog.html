@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.047</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.048</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -449,8 +449,7 @@
 1. M3 S10000 (wait 10s)
 2. -10% override
 3. G1 Z-1 F10 (6s move)
-4. -10% override
-5. G1 Z+1 F10 (6s move)</button>
+4. -10% override</button>
                 </div>
             </div>
         </div>
@@ -1396,7 +1395,6 @@
             debugSpindleRunning = true;
             const btn = document.getElementById('debugSpindleBtn');
             btn.style.background = '#2a4a2a';
-            btn.textContent = 'Running...';
 
             debugLog('=== DEBUG SPINDLE TEST START ===', 'info');
 
@@ -1423,17 +1421,10 @@
             // -10%
             debugLog('> 0x9B (-10%)', 'sent');
             sendRealtime(0x9B);
-            await new Promise(r => setTimeout(r, 1000));
-
-            // G1 Z+1 F10
-            debugLog('> G1 Z1 F10', 'sent');
-            cmd('G1 Z1 F10');
             cmd('G90');
-            await new Promise(r => setTimeout(r, 7000));
 
             debugLog('=== DEBUG SPINDLE TEST COMPLETE (spindle still running) ===', 'info');
             btn.style.background = '#4a2a2a';
-            btn.textContent = 'Debug Spindle';
             debugSpindleRunning = false;
         }
 
