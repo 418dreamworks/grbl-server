@@ -333,7 +333,7 @@
                 <span class="label clickable" onclick="openWorkModal()" style="display:inline-block;width:40px;">Work:</span>
                 <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HX')" title="Home X">X:</span> <span id="workX" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 X0')">&#x2299;0</button></span>
                 <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HY')" title="Home Y">Y:</span> <span id="workY" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 Y0')">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HZ')" title="Home Z">Z:</span> <span id="workZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 Z0')">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HZ')" title="Home Z">Z:</span> <span id="workZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="zeroZAndSetZ()">&#x2299;0</button></span>
                 <span><span style="color: #fc0; cursor:pointer;" onclick="homeA()" title="Home A">A:</span> <span id="workA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
                 <span class="unit clickable" onclick="toggleUnits()" id="unitWork">mm</span>
             </div>
@@ -417,7 +417,6 @@
             <div style="display: flex; flex-direction: column; gap: 16px;">
                 <!-- Macros -->
                 <div class="tool-buttons" style="display: flex; gap: 8px;">
-                    <button style="flex: 1;" onclick="runMacro('set_z')">Set Z</button>
                     <button style="flex: 1;" onclick="runMacro('tool_change')">Tool Change</button>
                 </div>
                 <!-- GCode Input -->
@@ -1167,9 +1166,18 @@
             if (aChanged) parts.push('A' + newA.toFixed(3));
             if (parts.length > 0) {
                 cmd('G10 L20 P1 ' + parts.join(' '));
+                // If Z was changed, run SetZ macro after a delay
+                if (zChanged) {
+                    setTimeout(() => runMacro('set_z'), 500);
+                }
             }
 
             closeWorkModal();
+        }
+
+        function zeroZAndSetZ() {
+            cmd('G10 L20 P1 Z0');
+            setTimeout(() => runMacro('set_z'), 500);
         }
 
         // ========== DEBUG CONSOLE ==========
