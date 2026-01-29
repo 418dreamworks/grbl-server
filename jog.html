@@ -1344,9 +1344,9 @@
 
             // Going below 10% means stop spindle
             if (newOverride < 10) {
-                // Turn off spindle and reset override for next startup
-                cmd('M5');
+                // Reset override first (while spindle still on), then turn off
                 sendRealtime(0x99);  // Reset spindle override to 100%
+                cmd('M5');
                 spindleRunning = false;
                 currentSpindleOverride = 100;
                 updateSpindleDisplay();
