@@ -285,7 +285,7 @@
     <div class="status-bar">
         <div class="status-row">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.004</span>
+                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.005</span>
                 <span class="machine-state" id="machineState">DISCONNECTED</span>
                 <!-- Port selector -->
                 <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -527,6 +527,7 @@
         let lastSafeLine = null;
         let lastSafeGcode = '';
         let showStatusLog = true;
+        let macroRunning = false;
 
         // ========== WEBSOCKET CONNECTION ==========
         let ws;
@@ -821,9 +822,18 @@
         function handleMacroLog(msg) {
             // Log macro progress to debug console (no modal)
             debugLog('[' + (msg.name || 'MACRO') + '] ' + msg.message, 'info');
+            // Show G-code commands in the input box (messages starting with "> ")
+            if (msg.message && msg.message.startsWith('> ')) {
+                const gcode = msg.message.substring(2);
+                const input = document.getElementById('gcodeInput');
+                input.value = gcode;
+                input.style.color = '#0f0';  // Green to show it's macro-generated
+            }
         }
 
         function handleMacroStatus(msg) {
+            macroRunning = true;
+            updateButtonStates();
             // Log status to console instead of showing modal
             debugLog('[' + (msg.name || 'MACRO') + '] Step ' + msg.step + '/' + msg.total + ': ' + msg.description, 'info');
             // Show CONTINUE overlay when waiting for user (tool change)
@@ -833,14 +843,24 @@
         }
 
         function handleMacroDone(msg) {
+            macroRunning = false;
             document.getElementById('continueOverlay').style.display = 'none';
+            const input = document.getElementById('gcodeInput');
+            input.value = '';
+            input.style.color = '#fff';  // Reset color
             debugLog('=== MACRO COMPLETE: ' + msg.name + ' ===', 'info');
             if (msg.name === 'set_z') setZDone = true;
+            updateButtonStates();
         }
 
         function handleMacroError(msg) {
+            macroRunning = false;
             document.getElementById('continueOverlay').style.display = 'none';
+            const input = document.getElementById('gcodeInput');
+            input.value = '';
+            input.style.color = '#fff';  // Reset color
             debugLog('MACRO ERROR (' + msg.name + '): ' + msg.error, 'error');
+            updateButtonStates();
         }
 
         function macroCancel() {
@@ -1063,6 +1083,8 @@
 
         // ========== BUTTON STATES ==========
         function updateButtonStates() {
+            const gcodeInput = document.getElementById('gcodeInput');
+
             if (!connected) {
                 document.getElementById('btnRun').disabled = true;
                 document.getElementById('btnPause').disabled = true;
@@ -1072,13 +1094,30 @@
                 document.getElementById('btnHome').disabled = true;
                 document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = true);
+                gcodeInput.disabled = true;
+                return;
+            }
+
+            // During macro run, disable most controls except stop/reset
+            if (macroRunning) {
+                document.getElementById('btnRun').disabled = true;
+                document.getElementById('btnPause').disabled = true;
+                document.getElementById('btnStop').disabled = false;  // Allow stop
+                document.getElementById('btnUnlock').disabled = true;
+                document.getElementById('btnReset').disabled = false;  // Allow reset
+                document.getElementById('btnHome').disabled = true;
+                document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = true);
+                gcodeInput.disabled = true;
                 return;
             }
 
             const state = lastMachineState;
             document.getElementById('btnRun').disabled = !state.startsWith('HOLD');
             document.getElementById('btnPause').disabled = !(state === 'IDLE' || state === 'RUN');
-            document.getElementById('btnStop').disabled = !(state === 'RUN' || streamerPaused);
+            document.getElementById('btnStop').disabled = !(state === 'RUN' || streamerPaused || macroRunning);
             document.getElementById('btnUnlock').disabled = !(state === 'ALARM');
             document.getElementById('btnReset').disabled = false;
             document.getElementById('btnHome').disabled = !(state === 'IDLE');
@@ -1088,6 +1127,8 @@
             document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => {
                 if (!btn.id || btn.id !== 'btnHome') btn.disabled = !jogEnabled;
             });
+            document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = !jogEnabled);
+            gcodeInput.disabled = !jogEnabled;
         }
 
         // ========== DIALOGS ==========
