@@ -261,7 +261,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.032</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.033</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1118,7 +1118,14 @@
             const input = document.getElementById('gcodeInput');
             const gcode = input.value.trim();
             if (gcode) {
-                cmd(gcode);
+                // Check if it's a hex realtime command (0x## or 0X##)
+                if (/^0x[0-9a-fA-F]{1,2}$/i.test(gcode)) {
+                    const byte = parseInt(gcode, 16);
+                    debugLog('Sending realtime byte: 0x' + byte.toString(16).toUpperCase(), 'info');
+                    sendRealtime(byte);
+                } else {
+                    cmd(gcode);
+                }
                 input.value = '';
             }
             input.focus();
