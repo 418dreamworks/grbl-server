@@ -1397,40 +1397,41 @@
 
             debugLog('=== DEBUG SPINDLE TEST START ===', 'info');
 
-            // Reset all overrides to 100% first
-            debugLog('Resetting overrides to 100%', 'info');
-            sendRealtime(0x90);  // Feed override reset to 100%
-            sendRealtime(0x99);  // Spindle override reset to 100%
-            currentFeedOverride = 100;
-            currentSpindleOverride = 100;
-            document.getElementById('feedRate').textContent = '100%';
-            updateSpindleDisplay();
+            // Reset overrides to 100% first
+            sendRealtime(0x90);
+            sendRealtime(0x99);
 
-            debugLog('Step 1: M3 S12000 + G1 Z-5 F6 (slow move during test)', 'info');
+            // M3 S12000
             debugLog('> M3 S12000', 'sent');
             cmd('M3 S12000');
-            debugLog('> G91', 'sent');
-            cmd('G91');  // Relative mode
-            debugLog('> G1 Z-5 F6', 'sent');
-            cmd('G1 Z-5 F6');  // Move Z down 5mm at F6 (6mm/min = 50 seconds)
-            debugLog('> G90', 'sent');
-            cmd('G90');  // Back to absolute
+            await new Promise(r => setTimeout(r, 2000));
 
-            for (let pct = 100; pct >= 10; pct -= 10) {
-                await new Promise(r => setTimeout(r, 5000));
-                debugLog('Step: Sending 0x9B (spindle -10%), target ' + (pct - 10) + '%', 'info');
-                sendRealtime(0x9B);
-            }
+            // -10%
+            debugLog('> 0x9B (-10%)', 'sent');
+            sendRealtime(0x9B);
+            await new Promise(r => setTimeout(r, 1000));
 
-            await new Promise(r => setTimeout(r, 5000));
-            debugLog('Step: Sending M5 (spindle off)', 'info');
+            // G1 Z-1 F10
+            debugLog('> G91 G1 Z-1 F10', 'sent');
+            cmd('G91');
+            cmd('G1 Z-1 F10');
+            await new Promise(r => setTimeout(r, 7000));  // ~6 sec move + buffer
+
+            // -10%
+            debugLog('> 0x9B (-10%)', 'sent');
+            sendRealtime(0x9B);
+            await new Promise(r => setTimeout(r, 1000));
+
+            // G1 Z+1 F10
+            debugLog('> G1 Z1 F10', 'sent');
+            cmd('G1 Z1 F10');
+            cmd('G90');
+            await new Promise(r => setTimeout(r, 7000));
+
+            // M5
+            debugLog('> M5', 'sent');
+            sendRealtime(0x99);  // Reset before M5
             cmd('M5');
-
-            // Reset override back to 100% so next spindle start isn't at 10%
-            debugLog('Resetting spindle override to 100%', 'info');
-            sendRealtime(0x99);
-            currentSpindleOverride = 100;
-            updateSpindleDisplay();
 
             debugLog('=== DEBUG SPINDLE TEST COMPLETE ===', 'info');
             btn.style.background = '#4a2a2a';
