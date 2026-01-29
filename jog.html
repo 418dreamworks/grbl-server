@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.053</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.054</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1364,23 +1364,16 @@
                 return;
             }
 
-            const oldSpeed = lastSpindleSpeed;
             currentSpindleOverride = newOverride;
             debugLog('Sending realtime 0x' + byte.toString(16) + ' newOverride=' + newOverride, 'info');
             sendRealtime(byte);
 
             // Force-apply when idle: tiny jog to trigger override
-            // Wait for status update, check if FS changed
             if (spindleRunning && lastMachineState === 'IDLE') {
-                setTimeout(() => {
-                    // If FS didn't change, machine is idle - do tiny jog
-                    if (lastSpindleSpeed === oldSpeed) {
-                        debugLog('Force-apply: tiny jog to trigger override', 'info');
-                        cmd('G91 G1 Z0.01 F1000');
-                        setTimeout(() => cmd('G1 Z-0.01 F1000'), 100);
-                        setTimeout(() => cmd('G90'), 200);
-                    }
-                }, 300);
+                debugLog('Force-apply: tiny Z jog', 'info');
+                cmd('G91 G1 Z0.01 F1000');
+                cmd('G1 Z-0.01 F1000');
+                cmd('G90');
             }
             updateSpindleDisplay();
         }
