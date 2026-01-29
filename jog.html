@@ -285,7 +285,7 @@
     <div class="status-bar">
         <div class="status-row">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.014</span>
+                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.015</span>
                 <span class="machine-state" id="machineState">DISCONNECTED</span>
                 <!-- Port selector -->
                 <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -443,11 +443,18 @@
         </div>
     </div>
 
-    <!-- Right Column - Camera -->
+    <!-- Right Column - Camera/G-code Toggle -->
     <div class="right-col">
-        <div class="section" style="flex: 1;">
+        <div style="display: flex; gap: 4px; margin-bottom: 8px;">
+            <button id="btnViewCamera" onclick="showView('camera')" style="flex: 1; padding: 6px; font-size: 12px; background: #2a4a2a; border-color: #3a6a3a;">Camera</button>
+            <button id="btnViewGcode" onclick="showView('gcode')" style="flex: 1; padding: 6px; font-size: 12px;">G-code</button>
+        </div>
+        <div class="section" style="flex: 1; position: relative;">
             <div class="camera" id="camera" style="height: 100%;">
                 <span>No camera feed</span>
+            </div>
+            <div id="gcodeViewer" style="display: none; height: 100%; background: #111; border-radius: 4px; overflow: hidden;">
+                <div id="gcodeContent" style="height: 100%; overflow-y: auto; font-family: monospace; font-size: 12px; padding: 8px; white-space: pre;"></div>
             </div>
         </div>
     </div>
@@ -798,10 +805,13 @@
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (e) => {
-                wsSend({ type: 'file_upload', filename: file.name, content: e.target.result });
+                const content = e.target.result;
+                wsSend({ type: 'file_upload', filename: file.name, content: content });
                 document.getElementById('fileName').textContent = file.name;
                 fileLoaded = true;
                 debugLog('File loaded: ' + file.name, 'info');
+                // Update G-code viewer
+                updateGcodeViewer(content.split('\n'), 0);
             };
             reader.readAsText(file);
         }
@@ -832,6 +842,10 @@
             document.getElementById('progressFill').style.width = pct + '%';
             if (msg.current_gcode) {
                 document.getElementById('gcodeInput').placeholder = 'L' + msg.current + ': ' + msg.current_gcode;
+            }
+            // Update G-code viewer with current line highlight
+            if (msg.current > 0 && currentView === 'gcode') {
+                updateGcodeViewer(null, msg.current);
             }
             // Update recovery info
             if (msg.last_safe_line) {
@@ -1421,6 +1435,47 @@
         });
 
         // ========== CAMERA ==========
+        // ========== VIEW TOGGLE ==========
+        let currentView = 'camera';
+        let gcodeLines = [];
+
+        function showView(view) {
+            currentView = view;
+            document.getElementById('camera').style.display = view === 'camera' ? 'flex' : 'none';
+            document.getElementById('gcodeViewer').style.display = view === 'gcode' ? 'block' : 'none';
+            document.getElementById('btnViewCamera').style.background = view === 'camera' ? '#2a4a2a' : '#333';
+            document.getElementById('btnViewCamera').style.borderColor = view === 'camera' ? '#3a6a3a' : '#555';
+            document.getElementById('btnViewGcode').style.background = view === 'gcode' ? '#2a4a2a' : '#333';
+            document.getElementById('btnViewGcode').style.borderColor = view === 'gcode' ? '#3a6a3a' : '#555';
+        }
+
+        function updateGcodeViewer(lines, currentLine) {
+            gcodeLines = lines || gcodeLines;
+            const container = document.getElementById('gcodeContent');
+            if (!gcodeLines.length) {
+                container.innerHTML = '<span style="color:#666;">No file loaded</span>';
+                return;
+            }
+            let html = '';
+            for (let i = 0; i < gcodeLines.length; i++) {
+                const lineNum = i + 1;
+                const isCurrent = lineNum === currentLine;
+                const lineStyle = isCurrent ? 'background:#2a4a2a; color:#fff;' : 'color:#888;';
+                const numStyle = 'color:#555; display:inline-block; width:5ch; text-align:right; margin-right:8px;';
+                html += '<div style="' + lineStyle + '"><span style="' + numStyle + '">' + lineNum + '</span>' + escapeHtml(gcodeLines[i]) + '</div>';
+            }
+            container.innerHTML = html;
+            // Auto-scroll to current line
+            if (currentLine > 0) {
+                const lineHeight = 18;
+                container.scrollTop = Math.max(0, (currentLine - 5) * lineHeight);
+            }
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         function setupCamera() {
             const cam = document.getElementById('camera');
             const img = document.createElement('img');
