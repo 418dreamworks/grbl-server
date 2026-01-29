@@ -17,6 +17,12 @@ TOOL_CHANGE_X = -2
 TOOL_CHANGE_Y = -418
 SAFE_Z = -45
 
+# Zero probe settings
+Z_PLATE_THICKNESS = 22.0      # Probe plate is 22mm above work surface
+PROBE_EDGE_OFFSET = 7.0       # Probe edge is 7mm from work edge (X and Y)
+TOOL_DIA_QUARTER = 6.35       # 1/4" = 6.35mm
+TOOL_DIA_EIGHTH = 3.175       # 1/8" = 3.175mm
+
 
 class MacroEngine:
     """Handles SetZ and ToolChange macros."""
@@ -267,6 +273,326 @@ class MacroEngine:
             await self._report_error(str(e))
         finally:
             self.running = False
+
+    async def run_probe_z(self):
+        """
+        Z Zero Probe - probe down to find workpiece top surface.
+
+        Plate is 22mm above work surface.
+        Tool starts 0-10mm above probe surface.
+        Sequence:
+          1. Probe down at F50 until contact
+          2. Back up 2mm, probe at F10
+          3. Back up 0.5mm, probe at F5
+          4. Set Z = 22 (plate thickness)
+        """
+        self.current_macro = 'probe_z'
+        self.running = True
+        self.cancel_flag = False
+
+        try:
+            await self._wait_idle()
+            await self._log('=== Z PROBE START ===')
+
+            # Switch to relative mode
+            await self._send_and_log('G91')
+
+            # First probe: fast (F50), max 15mm down
+            await self._send_and_log('G38.2 Z-15 F50')
+            await self._wait_idle()
+
+            # Back off 2mm
+            await self._send_and_log('G0 Z2')
+            await self._wait_idle()
+
+            # Second probe: medium (F10), max 10mm down
+            await self._send_and_log('G38.2 Z-10 F10')
+            await self._wait_idle()
+
+            # Back off 0.5mm
+            await self._send_and_log('G0 Z0.5')
+            await self._wait_idle()
+
+            # Third probe: slow (F5), max 5mm down
+            await self._send_and_log('G38.2 Z-5 F5')
+            await self._wait_idle()
+
+            # Back to absolute mode
+            await self._send_and_log('G90')
+
+            # Set Z to plate thickness (work surface is at Z=0)
+            await self._send_and_log(f'G10 L20 P1 Z{Z_PLATE_THICKNESS:.3f}')
+
+            await self._log(f'Z set to {Z_PLATE_THICKNESS}mm (plate thickness)')
+            await self._log('=== Z PROBE COMPLETE ===')
+            await self._report_done()
+
+        except Exception as e:
+            await self._log(f'Z PROBE ERROR: {e}')
+            await self._send_and_log('G90')  # Ensure back to absolute
+            await self._report_error(str(e))
+        finally:
+            self.running = False
+
+    async def run_probe_x(self, tool_diameter: float = TOOL_DIA_QUARTER):
+        """
+        X Zero Probe - probe right to find workpiece X edge.
+
+        Tool starts to the LEFT of the probe/stock.
+        Probe edge is 7mm to the LEFT of work X=0.
+
+        Sequence:
+          1. Move LEFT by (5 + tool_dia + 2)mm for safety
+          2. Probe RIGHT at F50 until contact
+          3. Back 2mm, probe at F10
+          4. Back 0.5mm, probe at F5
+          5. Set X = -(7 + tool_radius)
+        """
+        self.current_macro = 'probe_x'
+        self.running = True
+        self.cancel_flag = False
+
+        tool_radius = tool_diameter / 2
+        safety_move = 5 + tool_diameter + 2  # Move away distance
+
+        try:
+            await self._wait_idle()
+            await self._log(f'=== X PROBE START (tool dia={tool_diameter:.3f}mm) ===')
+
+            # Switch to relative mode
+            await self._send_and_log('G91')
+
+            # Move LEFT (away from stock) for safety
+            await self._send_and_log(f'G0 X-{safety_move:.3f}')
+            await self._wait_idle()
+
+            # First probe: fast (F50), probe RIGHT
+            await self._send_and_log('G38.2 X20 F50')
+            await self._wait_idle()
+
+            # Back off 2mm LEFT
+            await self._send_and_log('G0 X-2')
+            await self._wait_idle()
+
+            # Second probe: medium (F10)
+            await self._send_and_log('G38.2 X5 F10')
+            await self._wait_idle()
+
+            # Back off 0.5mm LEFT
+            await self._send_and_log('G0 X-0.5')
+            await self._wait_idle()
+
+            # Third probe: slow (F5)
+            await self._send_and_log('G38.2 X3 F5')
+            await self._wait_idle()
+
+            # Back to absolute mode
+            await self._send_and_log('G90')
+
+            # Set X: probe edge is 7mm left of work edge, plus tool radius
+            x_offset = -(PROBE_EDGE_OFFSET + tool_radius)
+            await self._send_and_log(f'G10 L20 P1 X{x_offset:.3f}')
+
+            await self._log(f'X set to {x_offset:.3f}mm (edge offset + tool radius)')
+            await self._log('=== X PROBE COMPLETE ===')
+            await self._report_done()
+
+        except Exception as e:
+            await self._log(f'X PROBE ERROR: {e}')
+            await self._send_and_log('G90')  # Ensure back to absolute
+            await self._report_error(str(e))
+        finally:
+            self.running = False
+
+    async def run_probe_y(self, tool_diameter: float = TOOL_DIA_QUARTER):
+        """
+        Y Zero Probe - probe forward to find workpiece Y edge.
+
+        Tool starts BELOW (in front of) the probe/stock.
+        Probe edge is 7mm BELOW work Y=0.
+
+        Sequence:
+          1. Move BACKWARD (-Y) by (5 + tool_dia + 2)mm for safety
+          2. Probe FORWARD (+Y) at F50 until contact
+          3. Back 2mm, probe at F10
+          4. Back 0.5mm, probe at F5
+          5. Set Y = -(7 + tool_radius)
+        """
+        self.current_macro = 'probe_y'
+        self.running = True
+        self.cancel_flag = False
+
+        tool_radius = tool_diameter / 2
+        safety_move = 5 + tool_diameter + 2  # Move away distance
+
+        try:
+            await self._wait_idle()
+            await self._log(f'=== Y PROBE START (tool dia={tool_diameter:.3f}mm) ===')
+
+            # Switch to relative mode
+            await self._send_and_log('G91')
+
+            # Move BACKWARD (away from stock) for safety
+            await self._send_and_log(f'G0 Y-{safety_move:.3f}')
+            await self._wait_idle()
+
+            # First probe: fast (F50), probe FORWARD
+            await self._send_and_log('G38.2 Y20 F50')
+            await self._wait_idle()
+
+            # Back off 2mm BACKWARD
+            await self._send_and_log('G0 Y-2')
+            await self._wait_idle()
+
+            # Second probe: medium (F10)
+            await self._send_and_log('G38.2 Y5 F10')
+            await self._wait_idle()
+
+            # Back off 0.5mm BACKWARD
+            await self._send_and_log('G0 Y-0.5')
+            await self._wait_idle()
+
+            # Third probe: slow (F5)
+            await self._send_and_log('G38.2 Y3 F5')
+            await self._wait_idle()
+
+            # Back to absolute mode
+            await self._send_and_log('G90')
+
+            # Set Y: probe edge is 7mm below work edge, plus tool radius
+            y_offset = -(PROBE_EDGE_OFFSET + tool_radius)
+            await self._send_and_log(f'G10 L20 P1 Y{y_offset:.3f}')
+
+            await self._log(f'Y set to {y_offset:.3f}mm (edge offset + tool radius)')
+            await self._log('=== Y PROBE COMPLETE ===')
+            await self._report_done()
+
+        except Exception as e:
+            await self._log(f'Y PROBE ERROR: {e}')
+            await self._send_and_log('G90')  # Ensure back to absolute
+            await self._report_error(str(e))
+        finally:
+            self.running = False
+
+    async def run_probe_xy(self, tool_diameter: float = TOOL_DIA_QUARTER):
+        """XY Corner Probe - probe X then Y."""
+        self.current_macro = 'probe_xy'
+        self.running = True
+        self.cancel_flag = False
+
+        try:
+            await self._log('=== XY PROBE START ===')
+
+            # Run X probe (reuse logic but don't reset running state)
+            await self._run_probe_x_internal(tool_diameter)
+
+            # Run Y probe
+            await self._run_probe_y_internal(tool_diameter)
+
+            await self._log('=== XY PROBE COMPLETE ===')
+            await self._report_done()
+
+        except Exception as e:
+            await self._log(f'XY PROBE ERROR: {e}')
+            await self._send_and_log('G90')
+            await self._report_error(str(e))
+        finally:
+            self.running = False
+
+    async def run_probe_xyz(self, tool_diameter: float = TOOL_DIA_QUARTER):
+        """XYZ Probe - probe Z, then X, then Y."""
+        self.current_macro = 'probe_xyz'
+        self.running = True
+        self.cancel_flag = False
+
+        try:
+            await self._log('=== XYZ PROBE START ===')
+
+            # Run Z probe first
+            await self._run_probe_z_internal()
+
+            # Run X probe
+            await self._run_probe_x_internal(tool_diameter)
+
+            # Run Y probe
+            await self._run_probe_y_internal(tool_diameter)
+
+            await self._log('=== XYZ PROBE COMPLETE ===')
+            await self._report_done()
+
+        except Exception as e:
+            await self._log(f'XYZ PROBE ERROR: {e}')
+            await self._send_and_log('G90')
+            await self._report_error(str(e))
+        finally:
+            self.running = False
+
+    async def _run_probe_z_internal(self):
+        """Internal Z probe logic (no state management)."""
+        await self._wait_idle()
+        await self._log('--- Z probe ---')
+        await self._send_and_log('G91')
+        await self._send_and_log('G38.2 Z-15 F50')
+        await self._wait_idle()
+        await self._send_and_log('G0 Z2')
+        await self._wait_idle()
+        await self._send_and_log('G38.2 Z-10 F10')
+        await self._wait_idle()
+        await self._send_and_log('G0 Z0.5')
+        await self._wait_idle()
+        await self._send_and_log('G38.2 Z-5 F5')
+        await self._wait_idle()
+        await self._send_and_log('G90')
+        await self._send_and_log(f'G10 L20 P1 Z{Z_PLATE_THICKNESS:.3f}')
+        await self._log(f'Z set to {Z_PLATE_THICKNESS}mm')
+
+    async def _run_probe_x_internal(self, tool_diameter: float):
+        """Internal X probe logic (no state management)."""
+        tool_radius = tool_diameter / 2
+        safety_move = 5 + tool_diameter + 2
+        await self._wait_idle()
+        await self._log(f'--- X probe (tool={tool_diameter:.3f}mm) ---')
+        await self._send_and_log('G91')
+        await self._send_and_log(f'G0 X-{safety_move:.3f}')
+        await self._wait_idle()
+        await self._send_and_log('G38.2 X20 F50')
+        await self._wait_idle()
+        await self._send_and_log('G0 X-2')
+        await self._wait_idle()
+        await self._send_and_log('G38.2 X5 F10')
+        await self._wait_idle()
+        await self._send_and_log('G0 X-0.5')
+        await self._wait_idle()
+        await self._send_and_log('G38.2 X3 F5')
+        await self._wait_idle()
+        await self._send_and_log('G90')
+        x_offset = -(PROBE_EDGE_OFFSET + tool_radius)
+        await self._send_and_log(f'G10 L20 P1 X{x_offset:.3f}')
+        await self._log(f'X set to {x_offset:.3f}mm')
+
+    async def _run_probe_y_internal(self, tool_diameter: float):
+        """Internal Y probe logic (no state management)."""
+        tool_radius = tool_diameter / 2
+        safety_move = 5 + tool_diameter + 2
+        await self._wait_idle()
+        await self._log(f'--- Y probe (tool={tool_diameter:.3f}mm) ---')
+        await self._send_and_log('G91')
+        await self._send_and_log(f'G0 Y-{safety_move:.3f}')
+        await self._wait_idle()
+        await self._send_and_log('G38.2 Y20 F50')
+        await self._wait_idle()
+        await self._send_and_log('G0 Y-2')
+        await self._wait_idle()
+        await self._send_and_log('G38.2 Y5 F10')
+        await self._wait_idle()
+        await self._send_and_log('G0 Y-0.5')
+        await self._wait_idle()
+        await self._send_and_log('G38.2 Y3 F5')
+        await self._wait_idle()
+        await self._send_and_log('G90')
+        y_offset = -(PROBE_EDGE_OFFSET + tool_radius)
+        await self._send_and_log(f'G10 L20 P1 Y{y_offset:.3f}')
+        await self._log(f'Y set to {y_offset:.3f}mm')
 
     async def _log(self, msg: str):
         """Log message to clients (shows in debug console)."""

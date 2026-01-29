@@ -285,7 +285,7 @@
     <div class="status-bar">
         <div class="status-row">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.010</span>
+                <span style="font-size: 11px; color: #666; font-family: monospace;">v1.011</span>
                 <span class="machine-state" id="machineState">DISCONNECTED</span>
                 <!-- Port selector -->
                 <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -420,6 +420,14 @@
                 <div class="tool-buttons" style="display: flex; gap: 8px;">
                     <button style="flex: 1;" onclick="runMacro('tool_change')">Tool Change</button>
                 </div>
+                <!-- Zero Probes -->
+                <div class="tool-buttons" style="display: flex; gap: 8px;">
+                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="runProbe('probe_z')">Z</button>
+                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_x')">X</button>
+                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_y')">Y</button>
+                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_xy')">XY</button>
+                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_xyz')">XYZ</button>
+                </div>
                 <!-- GCode Input -->
                 <div style="display: flex; gap: 8px;">
                     <input type="text" id="gcodeInput" placeholder="G-code..."
@@ -499,6 +507,24 @@
             <div class="modal-buttons">
                 <button onclick="closeWorkModal()">Cancel</button>
                 <button onclick="applyWorkCoords()" style="background:#2a4a2a;">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Probe Tool Diameter Modal -->
+    <div class="modal" id="probeModal" onclick="if(event.target===this)closeProbeModal()">
+        <div class="modal-content" style="min-width: 280px;">
+            <h3>Select Tool Diameter</h3>
+            <div style="display: flex; flex-direction: column; gap: 12px; margin: 15px 0;">
+                <button onclick="runProbeWithDia(6.35)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
+                    1/4" (6.35mm)
+                </button>
+                <button onclick="runProbeWithDia(3.175)" style="padding: 15px; font-size: 16px; background: #2a4a4a; border-color: #3a6a6a;">
+                    1/8" (3.175mm)
+                </button>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeProbeModal()">Cancel</button>
             </div>
         </div>
     </div>
@@ -1041,6 +1067,33 @@
             }
             debugLog('=== MACRO: ' + name + ' ===', 'info');
             wsSend({ type: 'macro_run', name: name });
+        }
+
+        // ========== ZERO PROBES ==========
+        let pendingProbe = '';
+
+        function runProbe(name) {
+            if (!connected) return;
+            debugLog('=== PROBE: ' + name + ' ===', 'info');
+            wsSend({ type: 'macro_run', name: name });
+        }
+
+        function showProbeModal(probeName) {
+            if (!connected) return;
+            pendingProbe = probeName;
+            document.getElementById('probeModal').classList.add('open');
+        }
+
+        function closeProbeModal() {
+            document.getElementById('probeModal').classList.remove('open');
+            pendingProbe = '';
+        }
+
+        function runProbeWithDia(toolDiameter) {
+            if (!pendingProbe) return;
+            debugLog('=== PROBE: ' + pendingProbe + ' (tool=' + toolDiameter + 'mm) ===', 'info');
+            wsSend({ type: 'macro_run', name: pendingProbe, tool_diameter: toolDiameter });
+            closeProbeModal();
         }
 
         // ========== UNITS ==========

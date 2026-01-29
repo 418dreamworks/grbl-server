@@ -715,10 +715,21 @@ class GrblServer:
 
         elif msg_type == 'macro_run':
             name = msg.get('name', '')
+            tool_dia = msg.get('tool_diameter', 6.35)  # Default to 1/4"
             if name == 'set_z':
                 asyncio.create_task(self.macros.run_set_z())
             elif name == 'tool_change':
                 asyncio.create_task(self.macros.run_tool_change())
+            elif name == 'probe_z':
+                asyncio.create_task(self.macros.run_probe_z())
+            elif name == 'probe_x':
+                asyncio.create_task(self.macros.run_probe_x(tool_dia))
+            elif name == 'probe_y':
+                asyncio.create_task(self.macros.run_probe_y(tool_dia))
+            elif name == 'probe_xy':
+                asyncio.create_task(self.macros.run_probe_xy(tool_dia))
+            elif name == 'probe_xyz':
+                asyncio.create_task(self.macros.run_probe_xyz(tool_dia))
 
         elif msg_type == 'macro_continue':
             self.macros.continue_macro()
