@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.064</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.065</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -395,14 +395,6 @@
                 <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z0')">Z0</button>
                 <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z10')">Z10</button>
             </div>
-            <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
-                <button style="flex:1; min-width:60px; background:#4a4a2a; border-color:#6a6a3a;" onclick="cmd('G10 L20 P1 A0')">Rotary Zero</button>
-                <button style="flex:1; min-width:60px; background:#2a4a4a; border-color:#3a6a6a;" onclick="runBoring()">Boring</button>
-                <button style="flex:1; min-width:60px; background:#4a2a4a; border-color:#6a3a6a;" onclick="runFacing()">Facing</button>
-                <button style="flex:1; min-width:60px; background:#2a2a4a; border-color:#3a3a6a;" onclick="runLineContour()">Line</button>
-                <button style="flex:1; min-width:60px; background:#4a3a2a; border-color:#6a5a3a;" onclick="runODMilling()">OD</button>
-                <button style="flex:1; min-width:60px; background:#3a4a3a; border-color:#5a6a5a;" onclick="runSlotting()">Slot</button>
-            </div>
         </div>
         <div class="section" style="margin-top: 8px; flex: 1; display: flex; flex-direction: column;">
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; flex: 1;">
@@ -442,6 +434,15 @@
                     <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_y')">Y</button>
                     <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_xy')">XY</button>
                     <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_xyz')">XYZ</button>
+                </div>
+                <!-- Macros -->
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="cmd('G10 L20 P1 A0')">Rotary 0</button>
+                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="runBoring()">Boring</button>
+                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="runFacing()">Facing</button>
+                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="runLineContour()">Line</button>
+                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="runODMilling()">OD</button>
+                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="runSlotting()">Slot</button>
                 </div>
                 <!-- Status -->
                 <div>
