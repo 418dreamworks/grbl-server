@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.054</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.055</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -352,13 +352,14 @@
                 <span><span style="color: #fc0; cursor:pointer;" onclick="homeA()" title="Home A">A:</span> <span id="workA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
                 <span class="unit clickable" onclick="toggleUnits()" id="unitDisplay" style="margin-left: 15px; position: relative; top: 14px;">mm</span>
             </div>
-            <span id="spindleRPM" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="spindleRPMValue" style="display:inline-block;width:5ch;text-align:right;">--</span><span id="spindleRPMUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">RPM</span></span>
+            <span id="spindleRPM" onclick="spindleOn()" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch; cursor: pointer;" title="Click to start spindle at S12000"><span id="spindleRPMValue" style="display:inline-block;width:5ch;text-align:right;">--</span><span id="spindleRPMUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">RPM</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
                 <button onclick="spindleOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
                 <button onclick="spindleOverride(-1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-1%</button>
-                <span id="spindleOverride" onclick="spindleToggleOrReset()" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to turn on/reset to 100%">OFF</span>
+                <span id="spindleOverride" onclick="spindleResetOverride()" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to reset to 100%">100%</span>
                 <button onclick="spindleOverride(1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+1%</button>
                 <button onclick="spindleOverride(10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+10%</button>
+                <button onclick="spindleOff()" style="min-width: auto; padding: 4px 8px; font-size: 13px; background: #4a2a2a; border-color: #6a3a3a;">OFF</button>
             </div>
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -1317,26 +1318,46 @@
         let currentSpindleOverride = 100;
         let spindleRunning = false;
 
-        function spindleToggleOrReset() {
+        // Toggle spindle: click RPM to turn on (M3 S12000) or off (M5)
+        function spindleOn() {
             if (!connected) return;
             if (!spindleRunning) {
-                // Spindle is off - turn it on at S12000
+                // Turn on at S12000
                 cmd('M3 S12000');
                 spindleRunning = true;
                 currentSpindleOverride = 100;
                 updateSpindleDisplay();
             } else {
-                // Spindle is on - reset to 100%
-                sendRealtime(0x99);
-                currentSpindleOverride = 100;
-                updateSpindleDisplay();
+                // Already on - turn off
+                spindleOff();
             }
+        }
+
+        function spindleOff() {
+            if (!connected) return;
+            sendRealtime(0x99);  // Reset spindle override to 100% first
+            cmd('M5');
+            spindleRunning = false;
+            currentSpindleOverride = 100;
+            updateSpindleDisplay();
+            debugLog('Spindle OFF', 'info');
+        }
+
+        function spindleResetOverride() {
+            if (!connected) return;
+            sendRealtime(0x99);
+            currentSpindleOverride = 100;
+            updateSpindleDisplay();
         }
 
         function spindleOverride(delta) {
             if (!connected) return;
 
-            debugLog('spindleOverride(' + delta + ') spindleRunning=' + spindleRunning + ' currentOverride=' + currentSpindleOverride, 'info');
+            // Capture old values BEFORE sending override command
+            const oldOverride = currentSpindleOverride;
+            const oldSpeed = lastSpindleSpeed;
+
+            debugLog('spindleOverride(' + delta + ') spindleRunning=' + spindleRunning + ' currentOverride=' + oldOverride + ' lastSpeed=' + oldSpeed, 'info');
 
             let byte;
             let newOverride = currentSpindleOverride;
@@ -1368,26 +1389,26 @@
             debugLog('Sending realtime 0x' + byte.toString(16) + ' newOverride=' + newOverride, 'info');
             sendRealtime(byte);
 
-            // Force-apply when idle: tiny jog to trigger override
-            if (spindleRunning && lastMachineState === 'IDLE') {
-                debugLog('Force-apply: tiny Z jog', 'info');
-                cmd('G91 G1 Z0.01 F1000');
-                cmd('G1 Z-0.01 F1000');
-                cmd('G90');
+            // Force-apply when idle using S(base+1) instead of Z jog
+            if (spindleRunning && lastMachineState === 'IDLE' && oldSpeed > 0) {
+                // Calculate base S value: base = current_speed / (old_override / 100)
+                const base = Math.round(oldSpeed / (oldOverride / 100));
+                const forceSpeed = base + 1;
+                debugLog('Force-apply: S' + forceSpeed + ' (base=' + base + ' from speed=' + oldSpeed + ' override=' + oldOverride + '%)', 'info');
+                cmd('S' + forceSpeed);
             }
             updateSpindleDisplay();
         }
 
         function updateSpindleDisplay() {
             const el = document.getElementById('spindleOverride');
+            el.textContent = currentSpindleOverride + '%';
             if (spindleRunning) {
-                el.textContent = currentSpindleOverride + '%';
                 el.style.background = '#2a4a2a';
                 el.style.color = '#6f6';
             } else {
-                el.textContent = 'OFF';
-                el.style.background = '#4a2a2a';
-                el.style.color = '#f66';
+                el.style.background = '#333';
+                el.style.color = '#888';
             }
         }
 
