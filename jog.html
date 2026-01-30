@@ -299,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.113</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.114</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -336,7 +336,6 @@
                 <div class="machine-ctrl" style="display: flex; gap: 8px; width: 50%;">
                     <button id="btnUnlock" style="flex: 1;" onclick="unlock()">Unlock</button>
                     <button id="btnReset" style="flex: 1;" onclick="doReset()">Reset</button>
-                    <button id="btnHome" style="flex: 1;" onclick="runMacro('HOMING')">Home</button>
                 </div>
                 </div>
             </div>
@@ -348,11 +347,11 @@
     <div class="pos">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
             <div style="display: flex; align-items: center; min-width: 520px;">
-                <span class="label clickable" onclick="openWorkModal()" style="display:inline-block;width:50px;margin-right:15px;">WPOS:</span>
-                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="cmd('$HX')" title="Home X">X:</span><span id="workX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="cmd('G10 L20 P1 X0')">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="cmd('$HY')" title="Home Y">Y:</span><span id="workY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="cmd('G10 L20 P1 Y0')">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="cmd('$HZ')" title="Home Z">Z:</span><span id="workZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="zeroZOnly()">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="homeA()" title="Home A">A:</span><span id="workA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
+                <span class="label clickable" onclick="zeroAllAxes()" style="display:inline-block;width:50px;margin-right:15px;" title="Click to zero all axes">WPOS:</span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('X')" title="Set X value">X:</span><span id="workX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="cmd('G10 L20 P1 X0')">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('Y')" title="Set Y value">Y:</span><span id="workY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="cmd('G10 L20 P1 Y0')">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('Z')" title="Set Z value">Z:</span><span id="workZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="zeroZOnly()">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('A')" title="Set A value">A:</span><span id="workA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
             </div>
             <span id="spindleRPM" onclick="spindleToggle()" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch; cursor: pointer;" title="Click to toggle spindle on/off"><span id="spindleRPMValue" style="display:inline-block;width:5ch;text-align:right;">--</span><span id="spindleRPMUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">RPM</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
@@ -363,7 +362,7 @@
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; color: #444; min-width: 520px;">
-                <span class="label" style="display:inline-block;width:50px;margin-right:15px;">MPOS:</span>
+                <span class="label clickable" onclick="runMacro('HOMING')" style="display:inline-block;width:50px;margin-right:15px;cursor:pointer;" title="Click to home all axes">MPOS:</span>
                 <span><span style="color: #553; margin-right:-9px;">X:</span><span id="machX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HX')">&#x2192;0</button></span>
                 <span><span style="color: #553; margin-right:-9px;">Y:</span><span id="machY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HY')">&#x2192;0</button></span>
                 <span><span style="color: #553; margin-right:-9px;">Z:</span><span id="machZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HZ')">&#x2192;0</button></span>
@@ -2007,7 +2006,6 @@
                 document.getElementById('btnStop').disabled = true;
                 document.getElementById('btnUnlock').disabled = true;
                 document.getElementById('btnReset').disabled = true;
-                document.getElementById('btnHome').disabled = true;
                 document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = true);
@@ -2022,7 +2020,6 @@
                 document.getElementById('btnStop').disabled = false;  // Allow stop
                 document.getElementById('btnUnlock').disabled = true;
                 document.getElementById('btnReset').disabled = false;  // Allow reset
-                document.getElementById('btnHome').disabled = true;
                 document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = true);
@@ -2036,13 +2033,10 @@
             document.getElementById('btnStop').disabled = !(state === 'RUN' || streamerPaused || macroRunning);
             document.getElementById('btnUnlock').disabled = !(state === 'ALARM');
             document.getElementById('btnReset').disabled = false;
-            document.getElementById('btnHome').disabled = !(state === 'IDLE');
 
             const jogEnabled = (state === 'IDLE');
             document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = !jogEnabled);
-            document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => {
-                if (!btn.id || btn.id !== 'btnHome') btn.disabled = !jogEnabled;
-            });
+            document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = !jogEnabled);
             document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = !jogEnabled);
             gcodeInput.disabled = !jogEnabled;
         }
@@ -2131,6 +2125,20 @@
 
         function zeroZOnly() {
             cmd('G10 L20 P1 Z0');
+        }
+
+        function zeroAllAxes() {
+            cmd('G10 L20 P1 X0 Y0 Z0 A0');
+        }
+
+        function setAxisValue(axis) {
+            const elemId = 'work' + axis;
+            const currentVal = parseFloat(document.getElementById(elemId).textContent) || 0;
+            const input = prompt('Set ' + axis + ' work position:', currentVal.toFixed(3));
+            if (input === null) return; // cancelled
+            const newVal = parseFloat(input);
+            if (isNaN(newVal)) return;
+            cmd('G10 L20 P1 ' + axis + newVal.toFixed(3));
         }
 
         // ========== DEBUG CONSOLE ==========

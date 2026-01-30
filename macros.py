@@ -86,8 +86,8 @@ class MacroEngine:
             # G90
             await self._send_and_log('G90')
 
-            # G38.2 Z-78 F300
-            await self._send_and_log('G38.2 Z-78 F300')
+            # G38.2 Z-78 F600
+            await self._send_and_log('G38.2 Z-78 F600')
             await self._wait_idle()
 
             # G91
@@ -147,7 +147,7 @@ class MacroEngine:
         G10 L20 P1 Z0                                    ; Zero work Z
         G28 X0 Y0 Z0                                     ; Go to G28 probe location
         G90
-        G38.2 Z-78 F300                                  ; Probe fast
+        G38.2 Z-78 F600                                  ; Probe fast
         G91
         G0 Z2                                            ; Back off
         G38.2 Z-4 F10                                    ; Probe slow
@@ -226,8 +226,8 @@ class MacroEngine:
             # G90
             await self._send_and_log('G90')
 
-            # G38.2 Z-78 F300
-            await self._send_and_log('G38.2 Z-78 F300')
+            # G38.2 Z-78 F600
+            await self._send_and_log('G38.2 Z-78 F600')
             await self._wait_idle()
 
             # G91
