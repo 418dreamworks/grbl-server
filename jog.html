@@ -299,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.116</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.117</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -507,9 +507,43 @@
             <button onclick="runDebugMacro()" style="margin-left: 4px; padding: 2px 12px; font-size: 11px; background: #2a4a2a; border-color: #3a6a3a;">Run</button>
             <button onclick="clearMacroEditor()" style="margin-left: 4px; padding: 2px 8px; font-size: 11px;">Clear</button>
         </div>
-        <textarea id="macroEditor" placeholder="# Python macro code&#10;# Use: await self._send_and_log('G-code')&#10;# Use: await self._wait_idle()"
-            style="width: 100%; height: 120px; background: #111; border: none; border-radius: 0 0 4px 4px;
-                   color: #0f0; font-family: monospace; font-size: 11px; padding: 8px; resize: vertical; box-sizing: border-box;"></textarea>
+        <textarea id="macroEditor"
+            style="width: 100%; height: 200px; background: #111; border: none; border-radius: 0 0 4px 4px;
+                   color: #0f0; font-family: monospace; font-size: 11px; padding: 8px; resize: vertical; box-sizing: border-box;"># Z Zero Probe
+await self._wait_idle()
+await self._log('=== Z PROBE START ===')
+
+# Switch to relative mode
+await self._send_and_log('G91')
+
+# First probe: fast (F50), max 15mm down
+await self._send_and_log('G38.2 Z-15 F50')
+await self._wait_idle()
+
+# Back off 2mm
+await self._send_and_log('G0 Z2')
+await self._wait_idle()
+
+# Second probe: medium (F10), max 10mm down
+await self._send_and_log('G38.2 Z-10 F10')
+await self._wait_idle()
+
+# Back off 0.5mm
+await self._send_and_log('G0 Z0.5')
+await self._wait_idle()
+
+# Third probe: slow (F5), max 5mm down
+await self._send_and_log('G38.2 Z-5 F5')
+await self._wait_idle()
+
+# Back to absolute mode
+await self._send_and_log('G90')
+
+# Set Z to plate thickness (22mm)
+await self._send_and_log('G10 L20 P1 Z22.000')
+
+await self._log('Z set to 22mm (plate thickness)')
+await self._log('=== Z PROBE COMPLETE ===')</textarea>
     </div>
 
     <!-- Console + Status Panel -->
