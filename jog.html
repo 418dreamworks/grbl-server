@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.059</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.060</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -438,14 +438,6 @@
                 <!-- Status -->
                 <div>
                     <button id="debugInfo" style="width: 100%; padding: 12px; background: #3a3a3a; border-color: #555;">&#x2713; Synced</button>
-                </div>
-                <!-- Debug spindle test -->
-                <div>
-                    <button id="debugSpindleBtn" onclick="debugSpindleTest()" style="width: 100%; padding: 12px; background: #4a2a2a; border-color: #7a3a3a; font-size: 12px; text-align: left; font-family: monospace; white-space: pre; line-height: 1.4;">Debug Spindle
-1. M3 S10000 (wait 10s)
-2. -10% override
-3. G1 Z-1 F10 (6s move)
-4. -10% override</button>
                 </div>
             </div>
         </div>
@@ -1382,49 +1374,6 @@
                 el.style.background = '#333';
                 el.style.color = '#888';
             }
-        }
-
-        // Debug spindle test - moves Z down slowly while adjusting spindle speed
-        let debugSpindleRunning = false;
-        async function debugSpindleTest() {
-            if (debugSpindleRunning) {
-                debugLog('Debug test already running', 'error');
-                return;
-            }
-            debugSpindleRunning = true;
-            const btn = document.getElementById('debugSpindleBtn');
-            btn.style.background = '#2a4a2a';
-
-            debugLog('=== DEBUG SPINDLE TEST START ===', 'info');
-
-            // Reset overrides to 100% first
-            sendRealtime(0x90);
-            sendRealtime(0x99);
-
-            // M3 S10000
-            debugLog('> M3 S10000 (waiting 10s for spindle)', 'sent');
-            cmd('M3 S10000');
-            await new Promise(r => setTimeout(r, 10000));
-
-            // -10%
-            debugLog('> 0x9B (-10%)', 'sent');
-            sendRealtime(0x9B);
-            await new Promise(r => setTimeout(r, 1000));
-
-            // G1 Z-1 F10
-            debugLog('> G91 G1 Z-1 F10', 'sent');
-            cmd('G91');
-            cmd('G1 Z-1 F10');
-            await new Promise(r => setTimeout(r, 7000));  // ~6 sec move + buffer
-
-            // -10%
-            debugLog('> 0x9B (-10%)', 'sent');
-            sendRealtime(0x9B);
-            cmd('G90');
-
-            debugLog('=== DEBUG SPINDLE TEST COMPLETE (spindle still running) ===', 'info');
-            btn.style.background = '#4a2a2a';
-            debugSpindleRunning = false;
         }
 
         // ========== JOB CONTROL ==========
