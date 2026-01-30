@@ -499,51 +499,18 @@
         </div>
     </div>
 
-    <!-- Debug Macro Editor -->
+    <!-- Macro Editor -->
     <div class="macro-editor-wrapper" style="grid-column: 1 / -1; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; margin-bottom: 8px;">
         <div style="display: flex; align-items: center; padding: 4px 8px; border-bottom: 1px solid #333;">
-            <span style="font-size: 12px; color: #888; font-weight: bold;">Debug Macro (Python)</span>
-            <button onclick="saveMacroEditor()" style="margin-left: auto; padding: 2px 12px; font-size: 11px; background: #4a4a2a; border-color: #6a6a3a;">Save</button>
-            <button onclick="runDebugMacro()" style="margin-left: 4px; padding: 2px 12px; font-size: 11px; background: #2a4a2a; border-color: #3a6a3a;">Run</button>
-            <button onclick="clearMacroEditor()" style="margin-left: 4px; padding: 2px 8px; font-size: 11px;">Clear</button>
+            <select id="macroSelect" onchange="loadSelectedMacro()" style="padding: 2px 8px; font-size: 11px; background: #333; color: #fff; border: 1px solid #555; border-radius: 3px;">
+                <option value="">Select Macro...</option>
+            </select>
+            <button onclick="saveMacroEditor()" style="margin-left: 8px; padding: 2px 12px; font-size: 11px; background: #4a4a2a; border-color: #6a6a3a;">Save</button>
         </div>
         <textarea id="macroEditor"
             style="width: 100%; height: 200px; background: #111; border: none; border-radius: 0 0 4px 4px;
-                   color: #0f0; font-family: monospace; font-size: 11px; padding: 8px; resize: vertical; box-sizing: border-box;"># Z Zero Probe
-await self._wait_idle()
-await self._log('=== Z PROBE START ===')
-
-# Switch to relative mode
-await self._send_and_log('G91')
-
-# First probe: fast (F50), max 15mm down
-await self._send_and_log('G38.2 Z-15 F50')
-await self._wait_idle()
-
-# Back off 2mm
-await self._send_and_log('G0 Z2')
-await self._wait_idle()
-
-# Second probe: medium (F10), max 10mm down
-await self._send_and_log('G38.2 Z-10 F10')
-await self._wait_idle()
-
-# Back off 0.5mm
-await self._send_and_log('G0 Z0.5')
-await self._wait_idle()
-
-# Third probe: slow (F5), max 5mm down
-await self._send_and_log('G38.2 Z-5 F5')
-await self._wait_idle()
-
-# Back to absolute mode
-await self._send_and_log('G90')
-
-# Set Z to plate thickness (22mm)
-await self._send_and_log('G10 L20 P1 Z22.000')
-
-await self._log('Z set to 22mm (plate thickness)')
-await self._log('=== Z PROBE COMPLETE ===')</textarea>
+                   color: #0f0; font-family: monospace; font-size: 11px; padding: 8px; resize: vertical; box-sizing: border-box;"
+            placeholder="Select a macro from the dropdown to edit..."></textarea>
     </div>
 
     <!-- Console + Status Panel -->
@@ -743,6 +710,7 @@ await self._log('=== Z PROBE COMPLETE ===')</textarea>
                 document.getElementById('machineState').className = 'machine-state idle';
                 wsSend({ type: 'list_ports' });
                 wsSend({ type: 'settings' });
+                wsSend({ type: 'macro_list' });
                 updateButtonStates();
             };
 
@@ -801,6 +769,11 @@ await self._log('=== Z PROBE COMPLETE ===')</textarea>
                 case 'macro_done':   handleMacroDone(msg); break;
                 case 'macro_error':  handleMacroError(msg); break;
                 case 'macro_log':    handleMacroLog(msg); break;
+                case 'macro_list':   populateMacroDropdown(msg.macros); break;
+                case 'macro_content':
+                    document.getElementById('macroEditor').value = msg.code || '';
+                    if (msg.error) debugLog('Macro load error: ' + msg.error, 'error');
+                    break;
                 case 'error':        debugLog('ERROR: ' + msg.message, 'error'); break;
             }
         }
@@ -1301,23 +1274,59 @@ await self._log('=== Z PROBE COMPLETE ===')</textarea>
             input.focus();
         }
 
-        // ========== DEBUG MACRO EDITOR ==========
+        // ========== MACRO EDITOR ==========
+        let currentMacroName = '';
+
+        function loadSelectedMacro() {
+            const select = document.getElementById('macroSelect');
+            const name = select.value;
+            if (!name) {
+                document.getElementById('macroEditor').value = '';
+                currentMacroName = '';
+                return;
+            }
+            currentMacroName = name;
+            wsSend({ type: 'macro_load', name: name });
+            debugLog('Loading macro: ' + name, 'info');
+        }
+
         function saveMacroEditor() {
+            if (!currentMacroName) {
+                debugLog('No macro selected', 'warn');
+                return;
+            }
             const code = document.getElementById('macroEditor').value;
-            wsSend({ type: 'debug_macro_save', code: code });
-            debugLog('Saving debug macro...', 'info');
+            wsSend({ type: 'macro_save', name: currentMacroName, code: code });
+            debugLog('Saving macro: ' + currentMacroName, 'info');
         }
 
-        function runDebugMacro() {
-            // Save first, then run
-            const code = document.getElementById('macroEditor').value;
-            wsSend({ type: 'debug_macro_save', code: code });
-            wsSend({ type: 'debug_macro_run' });
-            debugLog('Running debug macro...', 'info');
+        function populateMacroDropdown(macros) {
+            const select = document.getElementById('macroSelect');
+            select.innerHTML = '<option value="">Select Macro...</option>';
+
+            // Group by category
+            const categories = {};
+            macros.forEach(m => {
+                if (!categories[m.category]) categories[m.category] = [];
+                categories[m.category].push(m);
+            });
+
+            // Add grouped options
+            Object.keys(categories).sort().forEach(cat => {
+                const group = document.createElement('optgroup');
+                group.label = cat;
+                categories[cat].forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.name;
+                    opt.textContent = m.label;
+                    group.appendChild(opt);
+                });
+                select.appendChild(group);
+            });
         }
 
-        function clearMacroEditor() {
-            document.getElementById('macroEditor').value = '';
+        function requestMacroList() {
+            wsSend({ type: 'macro_list' });
         }
 
         function unlock() { wsSend({ type: 'unlock' }); }

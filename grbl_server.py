@@ -913,20 +913,13 @@ class GrblServer:
         elif msg_type == 'macro_run':
             name = msg.get('name', '')
             tool_dia = msg.get('tool_diameter', 6.35)  # Default to 1/4"
-            if name == 'set_z':
-                asyncio.create_task(self.macros.run_set_z())
-            elif name == 'tool_change':
-                asyncio.create_task(self.macros.run_tool_change())
-            elif name == 'probe_z':
-                asyncio.create_task(self.macros.run_probe_z())
-            elif name == 'probe_x':
-                asyncio.create_task(self.macros.run_probe_x(tool_dia))
-            elif name == 'probe_y':
-                asyncio.create_task(self.macros.run_probe_y(tool_dia))
-            elif name == 'probe_xy':
-                asyncio.create_task(self.macros.run_probe_xy(tool_dia))
-            elif name == 'probe_xyz':
-                asyncio.create_task(self.macros.run_probe_xyz(tool_dia))
+            # Map button names to macro file names
+            name_map = {
+                'set_z': 'tool_measure',
+                'tool_change': 'tool_change',
+            }
+            macro_name = name_map.get(name, name)
+            asyncio.create_task(self.macros.run_macro(macro_name, tool_diameter=tool_dia))
 
         elif msg_type == 'macro_continue':
             self.macros.continue_macro()
@@ -934,14 +927,43 @@ class GrblServer:
         elif msg_type == 'macro_cancel':
             self.macros.cancel()
 
-        elif msg_type == 'debug_macro_save':
-            code = msg.get('code', '')
-            debug_path = Path(__file__).parent / 'debug_macro.py'
-            debug_path.write_text(code)
-            await self.broadcast({'type': 'macro_log', 'name': 'debug', 'message': f'Saved to {debug_path}'})
+        elif msg_type == 'macro_list':
+            # Return list of available macros grouped by category
+            macros_dir = Path(__file__).parent / 'macros'
+            macros = []
+            if macros_dir.exists():
+                for f in sorted(macros_dir.glob('*.py')):
+                    name = f.stem
+                    # Convert filename to label: probe_z -> Probe:Z
+                    parts = name.split('_', 1)
+                    if len(parts) == 2:
+                        category = parts[0].capitalize()
+                        label = parts[1].replace('_', ' ').title().replace(' ', '')
+                        display_label = f'{category}:{label}'
+                    else:
+                        display_label = name.capitalize()
+                    macros.append({
+                        'name': name,
+                        'label': display_label,
+                        'category': parts[0].capitalize() if len(parts) == 2 else 'Other'
+                    })
+            await websocket.send(json.dumps({'type': 'macro_list', 'macros': macros}))
 
-        elif msg_type == 'debug_macro_run':
-            asyncio.create_task(self.macros.run_debug_macro())
+        elif msg_type == 'macro_load':
+            name = msg.get('name', '')
+            macro_path = Path(__file__).parent / 'macros' / f'{name}.py'
+            if macro_path.exists():
+                code = macro_path.read_text()
+                await websocket.send(json.dumps({'type': 'macro_content', 'name': name, 'code': code}))
+            else:
+                await websocket.send(json.dumps({'type': 'macro_content', 'name': name, 'code': '', 'error': 'File not found'}))
+
+        elif msg_type == 'macro_save':
+            name = msg.get('name', '')
+            code = msg.get('code', '')
+            macro_path = Path(__file__).parent / 'macros' / f'{name}.py'
+            macro_path.write_text(code)
+            await self.broadcast({'type': 'macro_log', 'name': name, 'message': f'Saved {name}.py'})
 
     def load_html(self):
         """Load jog.html from same directory as script."""

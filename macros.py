@@ -44,6 +44,9 @@ class MacroEngine:
         self.probe_work_z: Optional[float] = None
         self.set_z_done: bool = False
 
+        # Tool diameter for probing macros (can be set before running)
+        self.tool_diameter: float = TOOL_DIA_QUARTER  # Default to 1/4"
+
     async def run_set_z(self):
         """
         Run the SetZ macro - exact CNCjs commands.
@@ -718,6 +721,58 @@ class MacroEngine:
 
         except Exception as e:
             await self._log(f'DEBUG MACRO ERROR: {e}')
+            await self._report_error(str(e))
+        finally:
+            self.running = False
+
+    async def run_macro(self, name: str, **kwargs):
+        """
+        Run a macro from macros/{name}.py file.
+
+        The macro file contains raw async code that will be wrapped in an
+        async function and executed with self (MacroEngine) in the namespace.
+
+        Args:
+            name: Macro name (without .py extension)
+            **kwargs: Additional parameters to set on self before running
+        """
+        self.current_macro = name
+        self.running = True
+        self.cancel_flag = False
+
+        # Apply any kwargs as attributes (e.g., tool_diameter)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+        macro_path = Path(__file__).parent / 'macros' / f'{name}.py'
+
+        try:
+            if not macro_path.exists():
+                await self._log(f'Macro not found: {name}')
+                await self._report_error(f'Macro file not found: {macro_path}')
+                return
+
+            # Read macro code
+            code = macro_path.read_text()
+
+            # Create namespace with access to self and common imports
+            import math
+            namespace = {
+                'self': self,
+                'asyncio': asyncio,
+                'math': math,
+            }
+
+            # Wrap code in async function and execute
+            exec(f"import asyncio\nimport math\nasync def _run():\n" +
+                 '\n'.join('    ' + line for line in code.split('\n')),
+                 namespace)
+
+            await namespace['_run']()
+            await self._report_done()
+
+        except Exception as e:
+            await self._log(f'MACRO ERROR ({name}): {e}')
             await self._report_error(str(e))
         finally:
             self.running = False
