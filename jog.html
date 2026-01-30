@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.061</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.062</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -395,8 +395,10 @@
                 <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z0')">Z0</button>
                 <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z10')">Z10</button>
             </div>
-            <div style="margin-top: 8px;">
-                <button style="width:100%; background:#4a4a2a; border-color:#6a6a3a;" onclick="cmd('G10 L20 P1 A0')">Rotary Zero</button>
+            <div style="margin-top: 8px; display: flex; gap: 4px;">
+                <button style="flex:1; background:#4a4a2a; border-color:#6a6a3a;" onclick="cmd('G10 L20 P1 A0')">Rotary Zero</button>
+                <button style="flex:1; background:#2a4a4a; border-color:#3a6a6a;" onclick="runBoring()">Boring</button>
+                <button style="flex:1; background:#4a2a4a; border-color:#6a3a6a;" onclick="runFacing()">Facing</button>
             </div>
         </div>
         <div class="section" style="margin-top: 8px; flex: 1; display: flex; flex-direction: column;">
@@ -1413,6 +1415,59 @@
             sendRealtime(0x9E);
             spindleWasRunning = false;
             streamerPaused = false;
+        }
+
+        // ========== BORING ==========
+        function runBoring() {
+            if (!connected) return;
+            const diameter = prompt('Bore diameter (mm)?', '10');
+            if (!diameter) return;
+            const depth = prompt('Bore depth (mm)?', '5');
+            if (!depth) return;
+            const radius = parseFloat(diameter) / 2;
+            const d = parseFloat(depth);
+            // Boring cycle: move to edge, plunge, cut circle, retract
+            cmd('G91');  // Relative mode
+            cmd('G0 X' + radius.toFixed(3));  // Move to edge
+            cmd('G1 Z-' + d.toFixed(3) + ' F500');  // Plunge
+            cmd('G2 I-' + radius.toFixed(3) + ' J0 F300');  // Full circle
+            cmd('G0 Z' + d.toFixed(3));  // Retract
+            cmd('G0 X-' + radius.toFixed(3));  // Return to center
+            cmd('G90');  // Back to absolute
+            debugLog('Boring: D=' + diameter + ' depth=' + depth, 'info');
+        }
+
+        // ========== FACING ==========
+        function runFacing() {
+            if (!connected) return;
+            const width = prompt('Face width X (mm)?', '50');
+            if (!width) return;
+            const length = prompt('Face length Y (mm)?', '50');
+            if (!length) return;
+            const stepover = prompt('Stepover (mm)?', '5');
+            if (!stepover) return;
+            const depth = prompt('Face depth (mm)?', '0.5');
+            if (!depth) return;
+            const w = parseFloat(width);
+            const l = parseFloat(length);
+            const s = parseFloat(stepover);
+            const d = parseFloat(depth);
+            // Facing: zigzag pattern from current position
+            cmd('G91');  // Relative mode
+            cmd('G1 Z-' + d.toFixed(3) + ' F500');  // Plunge
+            let y = 0;
+            let dir = 1;
+            while (y < l) {
+                cmd('G1 X' + (dir * w).toFixed(3) + ' F800');
+                if (y + s < l) {
+                    cmd('G1 Y' + s.toFixed(3) + ' F800');
+                }
+                y += s;
+                dir *= -1;
+            }
+            cmd('G0 Z' + d.toFixed(3));  // Retract
+            cmd('G90');  // Back to absolute
+            debugLog('Facing: ' + width + 'x' + length + ' step=' + stepover + ' depth=' + depth, 'info');
         }
 
         // ========== MACROS ==========
