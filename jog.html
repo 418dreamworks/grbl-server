@@ -29,7 +29,9 @@
             border: 1px solid #555;
             color: #fff;
             padding: 12px 16px;
-            font-size: 14px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
             cursor: pointer;
             border-radius: 4px;
             min-width: 70px;
@@ -40,10 +42,10 @@
 
         /* Color coding */
         .machine-ctrl button { background: #3a3a3a; border-color: #5a5a5a; }
-        .z-buttons button, .work-zero button, .xy-grid button { flex: 1; min-height: 65px; }
+        .z-buttons button, .work-zero button { flex: 1; min-height: 65px; }
         .z-buttons button { background: #2a4a2a; border-color: #3a6a3a; }
         .work-zero button { background: #4a2a2a; border-color: #6a3a3a; }
-        .xy-grid button { background: #2a2a4a; border-color: #3a3a6a; padding: 15px; }
+        .xy-grid button { background: #2a2a4a; border-color: #3a3a6a; padding: 10px; }
         .xy-grid button.work-zero { background: #4a2a2a; border-color: #6a3a3a; }
         .tool-buttons button { background: #4a4a2a; border-color: #6a6a3a; }
         .job-ctrl button { background: #2a4a4a; border-color: #3a6a6a; }
@@ -59,7 +61,7 @@
         .jog-grid { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; }
         .jog-grid button { padding: 12px 20px; font-size: 14px; }
         .step-selector .step-label, .spindle-ctrl .step-label { font-size: 12px; color: #888; margin-bottom: 4px; text-align: center; }
-        .step-selector .step-btn { padding: 6px 10px; font-size: 12px; flex: 1; text-align: center; }
+        .step-selector .step-btn { padding: 12px 10px; font-size: 12px; flex: 1; text-align: center; }
         .step-selector .step-btn.active { background: #4a6a4a; border-color: #6a8a6a; }
         .spindle-on { background: #2a4a2a !important; border-color: #3a6a3a !important; }
         .spindle-off { background: #4a2a2a !important; border-color: #6a3a3a !important; }
@@ -90,7 +92,8 @@
         }
         .zero-btn:hover { background: #4a4a4a; }
 
-        .left-col { display: flex; flex-direction: column; justify-content: space-between; }
+        .left-col { display: flex; flex-direction: column; justify-content: space-between; align-self: start; }
+        .mid-col { align-self: start; }
         .right-col { display: flex; flex-direction: column; }
 
         .camera {
@@ -296,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.065</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.113</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -345,12 +348,11 @@
     <div class="pos">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
             <div style="display: flex; align-items: center; min-width: 520px;">
-                <span class="label clickable" onclick="openWorkModal()" style="display:inline-block;width:40px;">Work:</span>
-                <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HX')" title="Home X">X:</span> <span id="workX" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 X0')">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HY')" title="Home Y">Y:</span> <span id="workY" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 Y0')">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer;" onclick="cmd('$HZ')" title="Home Z">Z:</span> <span id="workZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="zeroZAndSetZ()">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer;" onclick="homeA()" title="Home A">A:</span> <span id="workA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
-                <span class="unit clickable" onclick="toggleUnits()" id="unitDisplay" style="margin-left: 15px; position: relative; top: 14px;">mm</span>
+                <span class="label clickable" onclick="openWorkModal()" style="display:inline-block;width:50px;margin-right:15px;">WPOS:</span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="cmd('$HX')" title="Home X">X:</span><span id="workX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="cmd('G10 L20 P1 X0')">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="cmd('$HY')" title="Home Y">Y:</span><span id="workY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="cmd('G10 L20 P1 Y0')">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="cmd('$HZ')" title="Home Z">Z:</span><span id="workZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="zeroZOnly()">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="homeA()" title="Home A">A:</span><span id="workA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
             </div>
             <span id="spindleRPM" onclick="spindleToggle()" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch; cursor: pointer;" title="Click to toggle spindle on/off"><span id="spindleRPMValue" style="display:inline-block;width:5ch;text-align:right;">--</span><span id="spindleRPMUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">RPM</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
@@ -361,13 +363,13 @@
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; color: #444; min-width: 520px;">
-                <span class="label" style="display:inline-block;width:40px;">Mach:</span>
-                <span><span style="color: #553;">X:</span> <span id="machX" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HX')">&#x2192;0</button></span>
-                <span><span style="color: #553;">Y:</span> <span id="machY" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HY')">&#x2192;0</button></span>
-                <span><span style="color: #553;">Z:</span> <span id="machZ" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="cmd('$HZ')">&#x2192;0</button></span>
-                <span><span style="color: #553;">A:</span> <span id="machA" style="display:inline-block;width:8ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
+                <span class="label" style="display:inline-block;width:50px;margin-right:15px;">MPOS:</span>
+                <span><span style="color: #553; margin-right:-9px;">X:</span><span id="machX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HX')">&#x2192;0</button></span>
+                <span><span style="color: #553; margin-right:-9px;">Y:</span><span id="machY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HY')">&#x2192;0</button></span>
+                <span><span style="color: #553; margin-right:-9px;">Z:</span><span id="machZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HZ')">&#x2192;0</button></span>
+                <span><span style="color: #553; margin-right:-9px;">A:</span><span id="machA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
             </div>
-            <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="machineSpeedValue" style="display:inline-block;width:5ch;text-align:right;">0</span><span id="machineSpeedUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">mm/min</span></span>
+            <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="machineSpeedValue" style="display:inline-block;width:5ch;text-align:right;">0</span><span id="machineSpeedUnit" class="clickable" onclick="toggleUnits()" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;cursor:pointer;text-decoration:underline;">mm/min</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
                 <button onclick="feedOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
                 <span id="feedRate" onclick="feedOverride(0)" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to reset to 100%">100%</span>
@@ -378,43 +380,53 @@
 
     <!-- Left Column -->
     <div class="left-col">
-        <div class="section">
+        <div class="section" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- RAPID -->
+            <div style="font-size:14.5px; color:#888; text-align:center;">RAPID</div>
             <div class="xy-grid">
-                <button onclick="gotoXY(workMaxX-MARGIN, MARGIN)">&#x2196;</button>
-                <button onclick="gotoXY(workMaxX/2, MARGIN)">&#x2191;</button>
-                <button onclick="gotoXY(MARGIN, MARGIN)">&#x2197;</button>
-                <button onclick="gotoXY(workMaxX-MARGIN, workMaxY/2)">&#x2190;</button>
-                <button onclick="gotoXY(workMaxX/2, workMaxY/2)">&#x25CF;</button>
-                <button onclick="gotoXY(MARGIN, workMaxY/2)">&#x2192;</button>
-                <button onclick="gotoXY(workMaxX-MARGIN, workMaxY-MARGIN)">&#x2199;</button>
-                <button onclick="gotoXY(workMaxX/2, workMaxY-MARGIN)">&#x2193;</button>
-                <button onclick="gotoXY(MARGIN, workMaxY-MARGIN)">&#x2198;</button>
+                <button onclick="gotoXY(workMaxX-MARGIN, MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2196;</span></button>
+                <button onclick="gotoXY(workMaxX/2, MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2191;</span></button>
+                <button onclick="gotoXY(MARGIN, MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2197;</span></button>
+                <button onclick="gotoXY(workMaxX-MARGIN, workMaxY/2)" style="min-height:49px;"><span style="font-size:20px">&#x2190;</span></button>
+                <button onclick="gotoXY(workMaxX/2, workMaxY/2)" style="min-height:49px;"><span style="font-size:20px">&#x25CF;</span></button>
+                <button onclick="gotoXY(MARGIN, workMaxY/2)" style="min-height:49px;"><span style="font-size:20px">&#x2192;</span></button>
+                <button onclick="gotoXY(workMaxX-MARGIN, workMaxY-MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2199;</span></button>
+                <button onclick="gotoXY(workMaxX/2, workMaxY-MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2193;</span></button>
+                <button onclick="gotoXY(MARGIN, workMaxY-MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2198;</span></button>
             </div>
-            <div class="xy-grid" style="margin-top: 8px;">
-                <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 X0 Y0')">X0 Y0</button>
-                <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z0')">Z0</button>
-                <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z10')">Z10</button>
+            <div class="xy-grid">
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 X0 Y0')">X0 Y0</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 Z0')">Z0</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 Z10')">Z10</button>
             </div>
-        </div>
-        <div class="section" style="margin-top: 8px; flex: 1; display: flex; flex-direction: column;">
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; flex: 1;">
-                <button onclick="jog('X', 1)" style="font-size:11px; min-width:0; min-height:0;">X+<span class="key">[&#x2192;]</span></button>
-                <button onclick="jog('Y', 1)" style="font-size:11px; min-width:0; min-height:0;">Y+<span class="key">[&#x2191;]</span></button>
-                <button onclick="jog('Z', 1)" style="font-size:11px; min-width:0; min-height:0;">Z+<span class="key">[Fn&#x2191;]</span></button>
-                <button onclick="jog('A', 1)" style="font-size:11px; min-width:0; min-height:0;">A+<span class="key">[Fn&#x2192;]</span></button>
-                <button onclick="jog('X', -1)" style="font-size:11px; min-width:0; min-height:0;">X-<span class="key">[&#x2190;]</span></button>
-                <button onclick="jog('Y', -1)" style="font-size:11px; min-width:0; min-height:0;">Y-<span class="key">[&#x2193;]</span></button>
-                <button onclick="jog('Z', -1)" style="font-size:11px; min-width:0; min-height:0;">Z-<span class="key">[Fn&#x2193;]</span></button>
-                <button onclick="jog('A', -1)" style="font-size:11px; min-width:0; min-height:0;">A-<span class="key">[Fn&#x2190;]</span></button>
+            <!-- JOG -->
+            <div style="font-size:14.5px; color:#888; text-align:center; margin-top:20px;">JOG</div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
+                <button onclick="jog('X', 1)" style="font-size:14px; min-height:49px;">X+</button>
+                <button onclick="jog('Y', 1)" style="font-size:14px; min-height:49px;">Y+</button>
+                <button onclick="jog('Z', 1)" style="font-size:14px; min-height:49px;">Z+</button>
+                <button onclick="jog('A', 1)" style="font-size:14px; min-height:49px;">A+</button>
+                <button onclick="jog('X', -1)" style="font-size:14px; min-height:49px;">X-</button>
+                <button onclick="jog('Y', -1)" style="font-size:14px; min-height:49px;">Y-</button>
+                <button onclick="jog('Z', -1)" style="font-size:14px; min-height:49px;">Z-</button>
+                <button onclick="jog('A', -1)" style="font-size:14px; min-height:49px;">A-</button>
             </div>
-            <div class="step-selector" style="margin-top: 4px;">
-                <div class="step-label" id="stepLabel" style="display:flex;justify-content:space-between;font-size:10px;"><span style="color:#555">&lt;</span><span>Step (mm)</span><span style="color:#555">&gt;</span></div>
-                <div id="stepButtons" style="display: flex; gap: 3px;">
-                    <button class="step-btn" onclick="setStep(0.025, this)" style="padding:4px 6px; font-size:10px;">0.025</button>
-                    <button class="step-btn" onclick="setStep(0.25, this)" style="padding:4px 6px; font-size:10px;">0.25</button>
-                    <button class="step-btn active" onclick="setStep(2.5, this)" style="padding:4px 6px; font-size:10px;">2.5</button>
-                    <button class="step-btn" onclick="setStep(25, this)" style="padding:4px 6px; font-size:10px;">25</button>
+            <!-- STEP -->
+            <div class="step-selector">
+                <div class="step-label" id="stepLabel" style="font-size:12px;text-align:center;">STEP (mm)</div>
+                <div id="stepButtons" style="display: flex; gap: 4px;">
+                    <button class="step-btn" onclick="setStep(0.025, this)" style="padding:12px 8px; font-size:12px; flex:1;">0.025</button>
+                    <button class="step-btn" onclick="setStep(0.25, this)" style="padding:12px 8px; font-size:12px; flex:1;">0.25</button>
+                    <button class="step-btn active" onclick="setStep(2.5, this)" style="padding:12px 8px; font-size:12px; flex:1;">2.5</button>
+                    <button class="step-btn" onclick="setStep(25, this)" style="padding:12px 8px; font-size:12px; flex:1;">25</button>
                 </div>
+            </div>
+            <!-- PROBE -->
+            <div style="font-size:14.5px; color:#888; text-align:center; margin-top:20px;">PROBE</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="runProbe('probe_z')">Z</button>
+                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_x')">X</button>
+                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_y')">Y</button>
             </div>
         </div>
     </div>
@@ -422,47 +434,68 @@
     <!-- Middle Column -->
     <div class="mid-col">
         <div class="section">
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <!-- Macros -->
-                <div class="tool-buttons" style="display: flex; gap: 8px;">
-                    <button style="flex: 1;" onclick="runMacro('tool_change')">Tool Change</button>
-                </div>
-                <!-- Zero Probes -->
-                <div class="tool-buttons" style="display: flex; gap: 8px;">
-                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="runProbe('probe_z')">Z</button>
-                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_x')">X</button>
-                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_y')">Y</button>
-                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_xy')">XY</button>
-                    <button style="flex: 1; background: #2a3a4a; border-color: #3a5a7a;" onclick="showProbeModal('probe_xyz')">XYZ</button>
-                </div>
-                <!-- Macros -->
-                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="cmd('G10 L20 P1 A0')">Rotary 0</button>
-                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="runBoring()">Boring</button>
-                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="runFacing()">Facing</button>
-                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="runLineContour()">Line</button>
-                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="runODMilling()">OD</button>
-                    <button style="flex:1; min-width:50px; padding:8px 4px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="runSlotting()">Slot</button>
-                </div>
-                <!-- Status -->
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- TOOL -->
                 <div>
-                    <button id="debugInfo" style="width: 100%; padding: 12px; background: #3a3a3a; border-color: #555;">&#x2713; Synced</button>
+                    <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">TOOL</div>
+                    <div class="tool-buttons" style="display: flex; gap: 8px;">
+                        <button style="flex: 1; min-height:49px;" onclick="runMacro('set_z')">Measure</button>
+                        <button style="flex: 1; min-height:49px;" onclick="runMacro('tool_change')">Change</button>
+                    </div>
+                </div>
+                <!-- ROTARY -->
+                <div style="margin-top:20px;">
+                    <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">ROTARY</div>
+                    <div style="display: flex; gap: 4px;">
+                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="cmd('G10 L20 P1 A0')">Chuck Find</button>
+                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="runTailstockFind()">Tailstock Find</button>
+                    </div>
+                </div>
+                <!-- MILLING -->
+                <div style="margin-top:20px;">
+                    <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">MILLING</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
+                        <button style="min-height:49px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="runBoring()">Boring</button>
+                        <button style="min-height:49px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="runFacing()">Facing</button>
+                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="runLineContour()">Line Contour</button>
+                        <button style="min-height:49px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="runODMilling()">OD Slot</button>
+                        <button style="min-height:49px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="runSlotting()">Line Slot</button>
+                        <button style="min-height:49px; background:#4a4a3a; border-color:#6a6a5a; font-size:11px;" onclick="runODContour()">OD Contour</button>
+                    </div>
+                </div>
+                <!-- SAFETY -->
+                <div style="margin-top:20px;">
+                    <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">SAFETY</div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                        <button style="min-height:49px; background:#3a3a3a; border-color:#555; font-size:12px;" onclick="addFixture()">Add Fixture</button>
+                        <button style="min-height:49px; background:#4a2a2a; border-color:#6a3a3a; font-size:12px;" onclick="clearFixtures()">Clear Fixtures</button>
+                        <button style="min-height:49px; background:#2a3a4a; border-color:#3a5a6a; font-size:12px;" onclick="runZCheck()">Z Check</button>
+                        <button style="min-height:49px; background:#2a3a4a; border-color:#3a5a6a; font-size:12px;" onclick="runXYCheck()">XY Check</button>
+                    </div>
+                </div>
+                <!-- DEBUG -->
+                <div>
+                    <button id="debugInfo" style="width:100%; min-height:91px; background:#333; border-color:#555; font-size:12px;">Debug</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Right Column - Camera/G-code Toggle -->
+    <!-- Right Column - Camera/G-code/Fixtures Toggle -->
     <div class="right-col">
         <div style="display: flex; gap: 4px; margin-bottom: 8px;">
             <button id="btnViewCamera" onclick="showView('camera')" style="flex: 1; padding: 6px; font-size: 12px; background: #2a4a2a; border-color: #3a6a3a;">Camera</button>
             <button id="btnViewGcode" onclick="showView('gcode')" style="flex: 1; padding: 6px; font-size: 12px;">G-code</button>
+            <button id="btnViewFixtures" onclick="showView('fixtures')" style="flex: 1; padding: 6px; font-size: 12px;">Fixtures</button>
         </div>
         <div class="section" style="flex: 1; position: relative;">
             <div class="camera" id="camera" style="height: 100%;">
                 <span>No camera feed</span>
             </div>
             <div id="gcodeViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow-y: auto; font-family: monospace; font-size: 12px; padding: 8px;">
+            </div>
+            <div id="fixturesViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow: hidden;">
+                <canvas id="fixturesCanvas" style="width: 100%; height: 100%;"></canvas>
             </div>
         </div>
     </div>
@@ -767,11 +800,7 @@
                         pendingX = machPosX; pendingY = machPosY;
                         pendingZ = machPosZ; pendingA = machPosA;
                     }
-                    document.getElementById('debugInfo').style.background = '#3a3a3a';
-                    document.getElementById('debugInfo').textContent = '\u2713 Synced';
-                } else {
-                    document.getElementById('debugInfo').style.background = '#3a3a3a';
-                    document.getElementById('debugInfo').textContent = 'Moving...';
+                    // DEBUG button - no auto-update, user controls content
                 }
 
                 document.getElementById('machX').textContent = (machPosX * factor).toFixed(decimals);
@@ -847,7 +876,8 @@
                 document.getElementById('spSpindleOv').textContent = msg.spindle_override + '%';
             }
             if (msg.feed_rate !== undefined) {
-                document.getElementById('spFeed').textContent = Math.round(msg.feed_rate) + ' mm/min';
+                const feedVal = currentUnit === 'in' ? msg.feed_rate / 25.4 : msg.feed_rate;
+                document.getElementById('spFeed').textContent = Math.round(feedVal) + ' ' + currentUnit + '/min';
             }
             if (msg.spindle_speed !== undefined) {
                 document.getElementById('spSpindle').textContent = msg.spindle_speed + ' RPM';
@@ -1555,6 +1585,340 @@
             debugLog('Slot: length=' + length + ' depth=' + depth + ' stepdown=' + stepdown + ' dir=' + dir, 'info');
         }
 
+        // ========== TAILSTOCK FIND ==========
+        function runTailstockFind() {
+            if (!connected) return;
+            // Zero A axis at current position (tailstock alignment)
+            cmd('G10 L20 P1 A0');
+            debugLog('Tailstock Find: A zeroed', 'info');
+        }
+
+        // ========== OD CONTOUR ==========
+        function runODContour() {
+            if (!connected) return;
+            const diameter = prompt('OD diameter (mm)?', '20');
+            if (!diameter) return;
+            const depth = prompt('Total depth (mm)?', '5');
+            if (!depth) return;
+            const stepdown = prompt('Step-down per pass (mm)?', '2');
+            if (!stepdown) return;
+            const radius = parseFloat(diameter) / 2;
+            const d = parseFloat(depth);
+            const sd = parseFloat(stepdown);
+            cmd('G91');  // Relative mode
+            cmd('G0 X' + radius.toFixed(3));  // Move to edge
+            let currentDepth = 0;
+            while (currentDepth < d) {
+                const thisStep = Math.min(sd, d - currentDepth);
+                cmd('G1 Z-' + thisStep.toFixed(3) + ' F300');  // Step down
+                cmd('G3 I-' + radius.toFixed(3) + ' J0 F300');  // CCW full circle
+                currentDepth += thisStep;
+            }
+            cmd('G0 Z' + d.toFixed(3));  // Retract
+            cmd('G0 X-' + radius.toFixed(3));  // Return to center
+            cmd('G90');  // Back to absolute
+            debugLog('OD Contour: D=' + diameter + ' depth=' + depth + ' stepdown=' + stepdown, 'info');
+        }
+
+        // ========== VIEW STATE (must be before fixtures) ==========
+        let currentView = 'camera';
+
+        // ========== FIXTURES ==========
+        let fixtures = JSON.parse(localStorage.getItem('fixtures') || '[]');
+        updateFixtureCount();
+
+        function updateFixtureCount() {
+            // Refresh fixtures view if active
+            if (currentView === 'fixtures') renderFixturesView();
+        }
+
+        function addFixture() {
+            // Use current work position
+            const x = parseFloat(document.getElementById('workX').textContent);
+            const y = parseFloat(document.getElementById('workY').textContent);
+            if (isNaN(x) || isNaN(y)) {
+                alert('No valid position');
+                return;
+            }
+            const radius = prompt('Fixture radius (mm)?', '15');
+            if (!radius) return;
+            const height = prompt('Fixture height above Z0 (mm)?', '10');
+            if (!height) return;
+            fixtures.push({ x: x, y: y, radius: parseFloat(radius), height: parseFloat(height) });
+            localStorage.setItem('fixtures', JSON.stringify(fixtures));
+            updateFixtureCount();
+            debugLog('Fixture added at X' + x.toFixed(1) + ' Y' + y.toFixed(1) + ' R' + radius + ' H' + height, 'info');
+        }
+
+        function clearFixtures() {
+            if (fixtures.length === 0) return;
+            if (!confirm('Clear all ' + fixtures.length + ' fixtures?')) return;
+            fixtures = [];
+            localStorage.setItem('fixtures', JSON.stringify(fixtures));
+            updateFixtureCount();
+            debugLog('Fixtures cleared', 'info');
+            if (currentView === 'fixtures') renderFixturesView();
+        }
+
+        function renderFixturesView() {
+            const canvas = document.getElementById('fixturesCanvas');
+            const container = document.getElementById('fixturesViewer');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            const ctx = canvas.getContext('2d');
+
+            // Clear
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Scale to fit work area with margin
+            // Machine coords: 0 at top-right, negative going left/down
+            const margin = 30;
+            const scaleX = (canvas.width - margin * 2) / workMaxX;
+            const scaleY = (canvas.height - margin * 2) / workMaxY;
+            const scale = Math.min(scaleX, scaleY);
+
+            // Machine coords: 0 is at right edge, -workMaxX at left
+            // Machine coords: 0 is at top edge, -workMaxY at bottom
+            function toCanvasX(machX) { return canvas.width - margin + machX * scale; }
+            function toCanvasY(machY) { return margin - machY * scale; }
+
+            // Draw work area boundary (soft limits rectangle)
+            // Machine area is from (0,0) at top-right to (-workMaxX, -workMaxY) at bottom-left
+            ctx.strokeStyle = '#4a4a6a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(toCanvasX(-workMaxX), toCanvasY(0), workMaxX * scale, workMaxY * scale);
+
+            // Label corners with machine coordinates
+            ctx.fillStyle = '#666';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('0, 0', toCanvasX(0) - 3, toCanvasY(0) + 12);
+            ctx.textAlign = 'left';
+            ctx.fillText('-' + workMaxX + ', -' + workMaxY, toCanvasX(-workMaxX) + 3, toCanvasY(-workMaxY) - 3);
+
+            // Draw grid
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 0.5;
+            const gridStep = 50;
+            for (let x = 0; x <= workMaxX; x += gridStep) {
+                ctx.beginPath();
+                ctx.moveTo(toCanvasX(-x), toCanvasY(0));
+                ctx.lineTo(toCanvasX(-x), toCanvasY(-workMaxY));
+                ctx.stroke();
+            }
+            for (let y = 0; y <= workMaxY; y += gridStep) {
+                ctx.beginPath();
+                ctx.moveTo(toCanvasX(0), toCanvasY(-y));
+                ctx.lineTo(toCanvasX(-workMaxX), toCanvasY(-y));
+                ctx.stroke();
+            }
+
+            // Convert work coords to machine coords
+            // Work (0,0) = far corner, Work (workMaxX, workMaxY) = near home
+            // Machine (0,0) = home, Machine (-workMaxX, -workMaxY) = far corner
+            function workToMachX(wx) { return wx - workMaxX; }
+            function workToMachY(wy) { return wy - workMaxY; }
+
+            // Draw fixtures as circles (stored in work coords, display in machine)
+            ctx.fillStyle = 'rgba(255, 100, 100, 0.3)';
+            ctx.strokeStyle = '#f66';
+            ctx.lineWidth = 2;
+            for (let f of fixtures) {
+                const mx = workToMachX(f.x);
+                const my = workToMachY(f.y);
+                ctx.beginPath();
+                ctx.arc(toCanvasX(mx), toCanvasY(my), f.radius * scale, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                // Label
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('H' + f.height, toCanvasX(mx), toCanvasY(my) + 4);
+                ctx.fillStyle = 'rgba(255, 100, 100, 0.3)';
+            }
+
+            // Draw current tool position (use machine coords directly)
+            const mx = parseFloat(document.getElementById('machX').textContent) || 0;
+            const my = parseFloat(document.getElementById('machY').textContent) || 0;
+            ctx.fillStyle = '#0f0';
+            ctx.beginPath();
+            ctx.arc(toCanvasX(mx), toCanvasY(my), 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Info text
+            ctx.fillStyle = '#888';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(fixtures.length + ' fixture(s)', margin, canvas.height - 20);
+            ctx.fillText('Machine: ' + workMaxX + ' x ' + workMaxY, margin, canvas.height - 5);
+        }
+
+        // Check if point (x,y) at height z collides with any fixture
+        function checkFixtureCollision(x, y, z) {
+            for (let f of fixtures) {
+                if (z < f.height) {
+                    const dist = Math.sqrt((x - f.x) ** 2 + (y - f.y) ** 2);
+                    if (dist < f.radius) {
+                        return f;
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Check if line segment from (x1,y1) to (x2,y2) passes through fixture circle
+        function lineIntersectsFixture(x1, y1, x2, y2, fx, fy, fr) {
+            // Vector from p1 to p2
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            // Vector from p1 to fixture center
+            const fx1 = fx - x1;
+            const fy1 = fy - y1;
+            // Project fixture center onto line
+            const len2 = dx * dx + dy * dy;
+            if (len2 === 0) return Math.sqrt(fx1 * fx1 + fy1 * fy1) < fr;
+            let t = (fx1 * dx + fy1 * dy) / len2;
+            t = Math.max(0, Math.min(1, t));
+            const closestX = x1 + t * dx;
+            const closestY = y1 + t * dy;
+            const dist = Math.sqrt((fx - closestX) ** 2 + (fy - closestY) ** 2);
+            return dist < fr;
+        }
+
+        // ========== CODE CHECK ==========
+        function runZCheck() {
+            if (!gcodeLines.length) {
+                alert('Load a G-code file first');
+                return;
+            }
+            if (fixtures.length === 0) {
+                alert('No fixtures defined');
+                return;
+            }
+
+            let x = 0, y = 0, z = 0;
+            let absolute = true;
+            const collisions = [];
+
+            for (let i = 0; i < gcodeLines.length; i++) {
+                const line = gcodeLines[i].toUpperCase().trim();
+                if (!line || line.startsWith('(') || line.startsWith(';')) continue;
+
+                // Track G90/G91
+                if (line.includes('G90')) absolute = true;
+                if (line.includes('G91')) absolute = false;
+
+                // Parse coordinates
+                const xMatch = line.match(/X([-\d.]+)/);
+                const yMatch = line.match(/Y([-\d.]+)/);
+                const zMatch = line.match(/Z([-\d.]+)/);
+
+                let newX = x, newY = y, newZ = z;
+                if (xMatch) newX = absolute ? parseFloat(xMatch[1]) : x + parseFloat(xMatch[1]);
+                if (yMatch) newY = absolute ? parseFloat(yMatch[1]) : y + parseFloat(yMatch[1]);
+                if (zMatch) newZ = absolute ? parseFloat(zMatch[1]) : z + parseFloat(zMatch[1]);
+
+                // Check for collision along this move
+                const minZ = Math.min(z, newZ);
+                for (let f of fixtures) {
+                    if (minZ < f.height && lineIntersectsFixture(x, y, newX, newY, f.x, f.y, f.radius)) {
+                        collisions.push({ line: i + 1, gcode: gcodeLines[i], fixture: f });
+                    }
+                }
+
+                x = newX; y = newY; z = newZ;
+            }
+
+            if (collisions.length === 0) {
+                alert('No collisions detected with ' + fixtures.length + ' fixture(s)');
+            } else {
+                let msg = collisions.length + ' collision(s) found:\n\n';
+                for (let c of collisions.slice(0, 10)) {
+                    msg += 'L' + c.line + ': ' + c.gcode.substring(0, 40) + '\n';
+                }
+                if (collisions.length > 10) msg += '... and ' + (collisions.length - 10) + ' more';
+                alert(msg);
+            }
+            debugLog('Z Check: ' + collisions.length + ' collisions', collisions.length ? 'error' : 'info');
+        }
+
+        function runXYCheck() {
+            if (!gcodeLines.length) {
+                alert('Load a G-code file first');
+                return;
+            }
+            if (fixtures.length === 0) {
+                alert('No fixtures defined');
+                return;
+            }
+
+            let x = 0, y = 0, z = 0;
+            let absolute = true;
+            const safeZ = Math.max(...fixtures.map(f => f.height)) + 5; // 5mm above tallest fixture
+            let modified = false;
+            let newLines = [];
+
+            for (let i = 0; i < gcodeLines.length; i++) {
+                const line = gcodeLines[i];
+                const upper = line.toUpperCase().trim();
+                if (!upper || upper.startsWith('(') || upper.startsWith(';')) {
+                    newLines.push(line);
+                    continue;
+                }
+
+                // Track G90/G91
+                if (upper.includes('G90')) absolute = true;
+                if (upper.includes('G91')) absolute = false;
+
+                // Parse coordinates
+                const xMatch = upper.match(/X([-\d.]+)/);
+                const yMatch = upper.match(/Y([-\d.]+)/);
+                const zMatch = upper.match(/Z([-\d.]+)/);
+
+                let newX = x, newY = y, newZ = z;
+                if (xMatch) newX = absolute ? parseFloat(xMatch[1]) : x + parseFloat(xMatch[1]);
+                if (yMatch) newY = absolute ? parseFloat(yMatch[1]) : y + parseFloat(yMatch[1]);
+                if (zMatch) newZ = absolute ? parseFloat(zMatch[1]) : z + parseFloat(zMatch[1]);
+
+                // Check if this is a rapid (G0) that collides
+                const isRapid = upper.includes('G0') || (upper.match(/^[XYZ]/) && !upper.includes('G1'));
+                const minZ = Math.min(z, newZ);
+                let collision = null;
+
+                for (let f of fixtures) {
+                    if (minZ < f.height && lineIntersectsFixture(x, y, newX, newY, f.x, f.y, f.radius)) {
+                        collision = f;
+                        break;
+                    }
+                }
+
+                if (isRapid && collision) {
+                    // Reroute: lift, move, lower
+                    newLines.push('G0 Z' + safeZ.toFixed(3) + ' (lift over fixture)');
+                    newLines.push('G0 X' + newX.toFixed(3) + ' Y' + newY.toFixed(3) + ' (move over)');
+                    if (zMatch) {
+                        newLines.push('G0 Z' + newZ.toFixed(3) + ' (lower to target)');
+                    }
+                    modified = true;
+                    debugLog('L' + (i+1) + ': Rerouted rapid around fixture', 'info');
+                } else {
+                    newLines.push(line);
+                }
+
+                x = newX; y = newY; z = newZ;
+            }
+
+            if (modified) {
+                gcodeLines = newLines;
+                renderGcode(gcodeLines);
+                alert('Rapids rerouted. Review G-code before running.');
+            } else {
+                alert('No rapid collisions found - G-code OK');
+            }
+        }
+
         // ========== MACROS ==========
         function runMacro(name) {
             if (!connected) return;
@@ -1563,7 +1927,7 @@
                 return;
             }
             if (name === 'tool_change' && !setZDone) {
-                alert('Run Set Z first!');
+                alert('Measure Tool first!');
                 return;
             }
             debugLog('=== MACRO: ' + name + ' ===', 'info');
@@ -1605,26 +1969,25 @@
         function toggleUnits() {
             if (currentUnit === 'mm') {
                 currentUnit = 'in';
-                cmd('G20');
+                if (connected) cmd('G20');
             } else {
                 currentUnit = 'mm';
-                cmd('G21');
+                if (connected) cmd('G21');
             }
-            document.getElementById('unitDisplay').textContent = currentUnit;
+            document.getElementById('machineSpeedUnit').textContent = currentUnit + '/min';
             updateStepButtons();
         }
 
         function updateStepButtons() {
             const steps = currentUnit === 'mm' ? mmSteps : inSteps;
             const container = document.getElementById('stepButtons');
-            document.getElementById('stepLabel').innerHTML =
-                '<span style="color:#555">&lt;</span><span>Step (' + currentUnit + ')</span><span style="color:#555">&gt;</span>';
+            document.getElementById('stepLabel').textContent = 'STEP (' + currentUnit + ')';
             container.innerHTML = '';
             steps.forEach((step) => {
                 const btn = document.createElement('button');
                 btn.className = 'step-btn';
                 btn.textContent = step;
-                btn.style.cssText = 'padding:4px 6px; font-size:10px;';
+                btn.style.cssText = 'padding:12px 8px; font-size:12px; flex:1;';
                 btn.onclick = function() { setStep(step, this); };
                 if ((currentUnit === 'mm' && step === 2.5) || (currentUnit === 'in' && step === 0.1)) {
                     btn.classList.add('active');
@@ -1761,18 +2124,13 @@
             if (aChanged) parts.push('A' + newA.toFixed(3));
             if (parts.length > 0) {
                 cmd('G10 L20 P1 ' + parts.join(' '));
-                // If Z was changed, run SetZ macro after a delay
-                if (zChanged) {
-                    setTimeout(() => runMacro('set_z'), 500);
-                }
             }
 
             closeWorkModal();
         }
 
-        function zeroZAndSetZ() {
+        function zeroZOnly() {
             cmd('G10 L20 P1 Z0');
-            setTimeout(() => runMacro('set_z'), 500);
         }
 
         // ========== DEBUG CONSOLE ==========
@@ -1865,7 +2223,6 @@
 
         // ========== CAMERA ==========
         // ========== VIEW TOGGLE ==========
-        let currentView = 'camera';
         let gcodeLines = [];
         let gcodeCurrentLine = 0;
         let userScrolling = false;
@@ -1876,13 +2233,20 @@
             // Use visibility instead of display so camera maintains container size
             document.getElementById('camera').style.visibility = view === 'camera' ? 'visible' : 'hidden';
             document.getElementById('gcodeViewer').style.display = view === 'gcode' ? 'block' : 'none';
+            document.getElementById('fixturesViewer').style.display = view === 'fixtures' ? 'block' : 'none';
             document.getElementById('btnViewCamera').style.background = view === 'camera' ? '#2a4a2a' : '#333';
             document.getElementById('btnViewCamera').style.borderColor = view === 'camera' ? '#3a6a3a' : '#555';
             document.getElementById('btnViewGcode').style.background = view === 'gcode' ? '#2a4a2a' : '#333';
             document.getElementById('btnViewGcode').style.borderColor = view === 'gcode' ? '#3a6a3a' : '#555';
+            document.getElementById('btnViewFixtures').style.background = view === 'fixtures' ? '#2a4a2a' : '#333';
+            document.getElementById('btnViewFixtures').style.borderColor = view === 'fixtures' ? '#3a6a3a' : '#555';
             // Refresh gcode view when switching to it
             if (view === 'gcode' && gcodeLines.length) {
                 updateGcodeViewer(null, gcodeCurrentLine);
+            }
+            // Render fixtures view when switching to it
+            if (view === 'fixtures') {
+                renderFixturesView();
             }
         }
 
