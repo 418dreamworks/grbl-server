@@ -934,6 +934,15 @@ class GrblServer:
         elif msg_type == 'macro_cancel':
             self.macros.cancel()
 
+        elif msg_type == 'debug_macro_save':
+            code = msg.get('code', '')
+            debug_path = Path(__file__).parent / 'debug_macro.py'
+            debug_path.write_text(code)
+            await self.broadcast({'type': 'macro_log', 'name': 'debug', 'message': f'Saved to {debug_path}'})
+
+        elif msg_type == 'debug_macro_run':
+            asyncio.create_task(self.macros.run_debug_macro())
+
     def load_html(self):
         """Load jog.html from same directory as script."""
         script_dir = Path(__file__).parent

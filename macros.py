@@ -3,6 +3,7 @@ CNC Macros - SetZ and ToolChange
 """
 import asyncio
 import time
+from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -673,3 +674,50 @@ class MacroEngine:
         """Cancel running macro."""
         self.cancel_flag = True
         self.continue_event.set()
+
+    async def run_debug_macro(self):
+        """Run the debug_macro.py file."""
+        self.current_macro = 'debug'
+        self.running = True
+        self.cancel_flag = False
+
+        debug_path = Path(__file__).parent / 'debug_macro.py'
+
+        try:
+            if not debug_path.exists():
+                await self._log('debug_macro.py not found')
+                await self._report_error('debug_macro.py not found')
+                return
+
+            await self._log('=== DEBUG MACRO START ===')
+
+            # Read and exec the debug macro
+            code = debug_path.read_text()
+
+            # Create a namespace with access to self (the MacroEngine)
+            namespace = {
+                'self': self,
+                'asyncio': asyncio,
+            }
+
+            # Wrap code in an async function and execute it
+            wrapped = f"async def _debug_macro():\n"
+            for line in code.split('\n'):
+                wrapped += f"    {line}\n"
+            wrapped += "\nasyncio.get_event_loop().run_until_complete(_debug_macro())"
+
+            # Actually, better approach - use exec with async
+            exec(f"import asyncio\nasync def _run():\n" +
+                 '\n'.join('    ' + line for line in code.split('\n')),
+                 namespace)
+
+            await namespace['_run']()
+
+            await self._log('=== DEBUG MACRO COMPLETE ===')
+            await self._report_done()
+
+        except Exception as e:
+            await self._log(f'DEBUG MACRO ERROR: {e}')
+            await self._report_error(str(e))
+        finally:
+            self.running = False
