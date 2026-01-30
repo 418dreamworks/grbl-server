@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.057</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.058</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1352,43 +1352,24 @@
             const oldOverride = currentSpindleOverride;
             const oldSpeed = lastSpindleSpeed;
 
-            debugLog('spindleOverride(' + delta + ') spindleRunning=' + spindleRunning + ' currentOverride=' + oldOverride + ' lastSpeed=' + oldSpeed, 'info');
+            // Calculate new override and check bounds (GRBL min is 10%, max is 200%)
+            let newOverride = currentSpindleOverride + delta;
+            if (newOverride < 10 || newOverride > 200) return;  // Do nothing at limits
 
             let byte;
-            let newOverride = currentSpindleOverride;
-
-            if (delta === 10) { byte = 0x9A; newOverride = Math.min(200, currentSpindleOverride + 10); }
-            else if (delta === -10) { byte = 0x9B; newOverride = currentSpindleOverride - 10; }
-            else if (delta === 1) { byte = 0x9C; newOverride = Math.min(200, currentSpindleOverride + 1); }
-            else if (delta === -1) { byte = 0x9D; newOverride = currentSpindleOverride - 1; }
-
-            // Going below 10% means stop spindle
-            if (newOverride < 10) {
-                // Reset override first (while spindle still on), then turn off
-                sendRealtime(0x99);  // Reset spindle override to 100%
-                cmd('M5');
-                spindleRunning = false;
-                currentSpindleOverride = 100;
-                updateSpindleDisplay();
-                // If feed is active (job running), also pause
-                if (currentFeedRate > 0) {
-                    sendRealtime(0x21); // Feed hold (!)
-                    debugLog('Spindle stopped - feed paused', 'info');
-                } else {
-                    debugLog('Spindle stopped', 'info');
-                }
-                return;
-            }
+            if (delta === 10) byte = 0x9A;
+            else if (delta === -10) byte = 0x9B;
+            else if (delta === 1) byte = 0x9C;
+            else if (delta === -1) byte = 0x9D;
 
             currentSpindleOverride = newOverride;
-            debugLog('Sending realtime 0x' + byte.toString(16) + ' newOverride=' + newOverride, 'info');
+            debugLog('spindleOverride: ' + oldOverride + '% -> ' + newOverride + '%', 'info');
             sendRealtime(byte);
 
             // Force-apply when idle using S(base+1) then S(base) to restore
             if (spindleRunning && lastMachineState === 'IDLE' && oldSpeed > 0) {
-                // Calculate base S value: base = current_speed / (old_override / 100)
                 const base = Math.round(oldSpeed / (oldOverride / 100));
-                debugLog('Force-apply: S' + (base + 1) + ' then S' + base + ' (from speed=' + oldSpeed + ' override=' + oldOverride + '%)', 'info');
+                debugLog('Force-apply: S' + (base + 1) + ' then S' + base, 'info');
                 cmd('S' + (base + 1));
                 cmd('S' + base);
             }
