@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.058</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.059</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -355,9 +355,7 @@
             <span id="spindleRPM" onclick="spindleToggle()" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch; cursor: pointer;" title="Click to toggle spindle on/off"><span id="spindleRPMValue" style="display:inline-block;width:5ch;text-align:right;">--</span><span id="spindleRPMUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">RPM</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
                 <button onclick="spindleOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
-                <button onclick="spindleOverride(-1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-1%</button>
                 <span id="spindleOverride" onclick="spindleResetOverride()" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to reset to 100%">100%</span>
-                <button onclick="spindleOverride(1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+1%</button>
                 <button onclick="spindleOverride(10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+10%</button>
             </div>
         </div>
@@ -372,9 +370,7 @@
             <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="machineSpeedValue" style="display:inline-block;width:5ch;text-align:right;">0</span><span id="machineSpeedUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">mm/min</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
                 <button onclick="feedOverride(-10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-10%</button>
-                <button onclick="feedOverride(-1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">-1%</button>
                 <span id="feedRate" onclick="feedOverride(0)" style="font-family: monospace; width: 5ch; display: inline-block; text-align: center; font-size: 15px; font-weight: bold; background: #222; padding: 4px 4px; border-radius: 4px; cursor: pointer;" title="Click to reset to 100%">100%</span>
-                <button onclick="feedOverride(1)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+1%</button>
                 <button onclick="feedOverride(10)" style="min-width: auto; padding: 4px 6px; font-size: 15px;">+10%</button>
             </div>
         </div>
