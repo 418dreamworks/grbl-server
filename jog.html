@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.062</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.064</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -395,10 +395,13 @@
                 <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z0')">Z0</button>
                 <button style="background:#4a2a2a; border-color:#6a3a3a;" onclick="cmd('G54 G0 Z10')">Z10</button>
             </div>
-            <div style="margin-top: 8px; display: flex; gap: 4px;">
-                <button style="flex:1; background:#4a4a2a; border-color:#6a6a3a;" onclick="cmd('G10 L20 P1 A0')">Rotary Zero</button>
-                <button style="flex:1; background:#2a4a4a; border-color:#3a6a6a;" onclick="runBoring()">Boring</button>
-                <button style="flex:1; background:#4a2a4a; border-color:#6a3a6a;" onclick="runFacing()">Facing</button>
+            <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+                <button style="flex:1; min-width:60px; background:#4a4a2a; border-color:#6a6a3a;" onclick="cmd('G10 L20 P1 A0')">Rotary Zero</button>
+                <button style="flex:1; min-width:60px; background:#2a4a4a; border-color:#3a6a6a;" onclick="runBoring()">Boring</button>
+                <button style="flex:1; min-width:60px; background:#4a2a4a; border-color:#6a3a6a;" onclick="runFacing()">Facing</button>
+                <button style="flex:1; min-width:60px; background:#2a2a4a; border-color:#3a3a6a;" onclick="runLineContour()">Line</button>
+                <button style="flex:1; min-width:60px; background:#4a3a2a; border-color:#6a5a3a;" onclick="runODMilling()">OD</button>
+                <button style="flex:1; min-width:60px; background:#3a4a3a; border-color:#5a6a5a;" onclick="runSlotting()">Slot</button>
             </div>
         </div>
         <div class="section" style="margin-top: 8px; flex: 1; display: flex; flex-direction: column;">
@@ -1468,6 +1471,87 @@
             cmd('G0 Z' + d.toFixed(3));  // Retract
             cmd('G90');  // Back to absolute
             debugLog('Facing: ' + width + 'x' + length + ' step=' + stepover + ' depth=' + depth, 'info');
+        }
+
+        // ========== LINE CONTOUR ==========
+        function runLineContour() {
+            if (!connected) return;
+            const length = prompt('Line length (mm)?', '50');
+            if (!length) return;
+            const depth = prompt('Cut depth (mm)?', '5');
+            if (!depth) return;
+            const dir = prompt('Direction? (X, Y, or angle)', 'X');
+            if (!dir) return;
+            const l = parseFloat(length);
+            const d = parseFloat(depth);
+            cmd('G91');  // Relative mode
+            cmd('G1 Z-' + d.toFixed(3) + ' F500');  // Plunge
+            if (dir.toUpperCase() === 'X') {
+                cmd('G1 X' + l.toFixed(3) + ' F600');
+            } else if (dir.toUpperCase() === 'Y') {
+                cmd('G1 Y' + l.toFixed(3) + ' F600');
+            } else {
+                const angle = parseFloat(dir) * Math.PI / 180;
+                const dx = l * Math.cos(angle);
+                const dy = l * Math.sin(angle);
+                cmd('G1 X' + dx.toFixed(3) + ' Y' + dy.toFixed(3) + ' F600');
+            }
+            cmd('G0 Z' + d.toFixed(3));  // Retract
+            cmd('G90');  // Back to absolute
+            debugLog('Line: length=' + length + ' depth=' + depth + ' dir=' + dir, 'info');
+        }
+
+        // ========== OD MILLING ==========
+        function runODMilling() {
+            if (!connected) return;
+            const diameter = prompt('OD diameter (mm)?', '20');
+            if (!diameter) return;
+            const depth = prompt('Cut depth (mm)?', '5');
+            if (!depth) return;
+            const radius = parseFloat(diameter) / 2;
+            const d = parseFloat(depth);
+            // OD: cut around outside of circle from current center
+            cmd('G91');  // Relative mode
+            cmd('G0 X' + radius.toFixed(3));  // Move to edge
+            cmd('G1 Z-' + d.toFixed(3) + ' F500');  // Plunge
+            cmd('G3 I-' + radius.toFixed(3) + ' J0 F300');  // CCW full circle (climb milling)
+            cmd('G0 Z' + d.toFixed(3));  // Retract
+            cmd('G0 X-' + radius.toFixed(3));  // Return to center
+            cmd('G90');  // Back to absolute
+            debugLog('OD: D=' + diameter + ' depth=' + depth, 'info');
+        }
+
+        // ========== SLOTTING ==========
+        function runSlotting() {
+            if (!connected) return;
+            const length = prompt('Slot length (mm)?', '20');
+            if (!length) return;
+            const depth = prompt('Slot depth (mm)?', '5');
+            if (!depth) return;
+            const stepdown = prompt('Step-down per pass (mm)?', '2');
+            if (!stepdown) return;
+            const dir = prompt('Direction? (X or Y)', 'X');
+            if (!dir) return;
+            const l = parseFloat(length);
+            const d = parseFloat(depth);
+            const sd = parseFloat(stepdown);
+            cmd('G91');  // Relative mode
+            let currentDepth = 0;
+            while (currentDepth < d) {
+                const thisStep = Math.min(sd, d - currentDepth);
+                cmd('G1 Z-' + thisStep.toFixed(3) + ' F300');  // Step down
+                if (dir.toUpperCase() === 'X') {
+                    cmd('G1 X' + l.toFixed(3) + ' F400');
+                    cmd('G1 X-' + l.toFixed(3) + ' F400');
+                } else {
+                    cmd('G1 Y' + l.toFixed(3) + ' F400');
+                    cmd('G1 Y-' + l.toFixed(3) + ' F400');
+                }
+                currentDepth += thisStep;
+            }
+            cmd('G0 Z' + d.toFixed(3));  // Retract
+            cmd('G90');  // Back to absolute
+            debugLog('Slot: length=' + length + ' depth=' + depth + ' stepdown=' + stepdown + ' dir=' + dir, 'info');
         }
 
         // ========== MACROS ==========
