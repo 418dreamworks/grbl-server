@@ -296,7 +296,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.056</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.057</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1384,13 +1384,13 @@
             debugLog('Sending realtime 0x' + byte.toString(16) + ' newOverride=' + newOverride, 'info');
             sendRealtime(byte);
 
-            // Force-apply when idle using S(base+1) instead of Z jog
+            // Force-apply when idle using S(base+1) then S(base) to restore
             if (spindleRunning && lastMachineState === 'IDLE' && oldSpeed > 0) {
                 // Calculate base S value: base = current_speed / (old_override / 100)
                 const base = Math.round(oldSpeed / (oldOverride / 100));
-                const forceSpeed = base + 1;
-                debugLog('Force-apply: S' + forceSpeed + ' (base=' + base + ' from speed=' + oldSpeed + ' override=' + oldOverride + '%)', 'info');
-                cmd('S' + forceSpeed);
+                debugLog('Force-apply: S' + (base + 1) + ' then S' + base + ' (from speed=' + oldSpeed + ' override=' + oldOverride + '%)', 'info');
+                cmd('S' + (base + 1));
+                cmd('S' + base);
             }
             updateSpindleDisplay();
         }
