@@ -472,6 +472,17 @@ class GrblConnection:
             if self.logger and data != b'?':
                 self.logger.log_realtime(data[0] if data else 0)
 
+    async def send_nowait(self, line: str):
+        """Send a G-code command without waiting for response (for jog commands)."""
+        if not self.connected or not self.ser:
+            return
+        cmd = line.strip() + '\n'
+        self.ser.write(cmd.encode('utf-8'))
+        if self.logger:
+            self.logger.log_send(line.strip())
+        if self.broadcast_callback:
+            await self.broadcast_callback({'type': 'serial_write', 'line': line.strip()})
+
 # ============================================================
 # FILE STREAMER
 # ============================================================
@@ -844,8 +855,12 @@ class GrblServer:
 
         elif msg_type == 'gcode':
             line = msg.get('line', '')
-            result = await self.grbl.send_command(line)
-            await ws.send(json.dumps({'type': 'response', 'to': line, 'result': result}))
+            nowait = msg.get('nowait', False)
+            if nowait:
+                await self.grbl.send_nowait(line)
+            else:
+                result = await self.grbl.send_command(line)
+                await ws.send(json.dumps({'type': 'response', 'to': line, 'result': result}))
 
         elif msg_type == 'realtime':
             byte = msg.get('byte', 0)
