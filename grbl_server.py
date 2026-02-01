@@ -795,6 +795,7 @@ class GrblServer:
         self.streamer.broadcast_callback = self.broadcast
         self.macros.broadcast_callback = self.broadcast
         self.macros.notify_callback = self.send_notification
+        self.macros.streamer = self.streamer  # Give macros access to loaded G-code
 
     async def send_notification(self, message: str):
         """Send SMS notification for user action required."""
@@ -931,6 +932,16 @@ class GrblServer:
             # Return list of available macros grouped by category
             macros_dir = Path(__file__).parent / 'macros'
             macros = []
+
+            # Add config.py as first item
+            config_path = Path(__file__).parent / 'config.py'
+            if config_path.exists():
+                macros.append({
+                    'name': '_config',
+                    'label': 'Config',
+                    'category': '0_Config'  # 0_ prefix to sort first
+                })
+
             if macros_dir.exists():
                 for f in sorted(macros_dir.glob('*.py')):
                     name = f.stem
@@ -951,7 +962,11 @@ class GrblServer:
 
         elif msg_type == 'macro_load':
             name = msg.get('name', '')
-            macro_path = Path(__file__).parent / 'macros' / f'{name}.py'
+            # Special handling for config.py
+            if name == '_config':
+                macro_path = Path(__file__).parent / 'config.py'
+            else:
+                macro_path = Path(__file__).parent / 'macros' / f'{name}.py'
             if macro_path.exists():
                 code = macro_path.read_text()
                 await websocket.send(json.dumps({'type': 'macro_content', 'name': name, 'code': code}))
@@ -961,9 +976,65 @@ class GrblServer:
         elif msg_type == 'macro_save':
             name = msg.get('name', '')
             code = msg.get('code', '')
-            macro_path = Path(__file__).parent / 'macros' / f'{name}.py'
+            # Special handling for config.py
+            if name == '_config':
+                macro_path = Path(__file__).parent / 'config.py'
+                display_name = 'config'
+            else:
+                macro_path = Path(__file__).parent / 'macros' / f'{name}.py'
+                display_name = name
             macro_path.write_text(code)
-            await self.broadcast({'type': 'macro_log', 'name': name, 'message': f'Saved {name}.py'})
+            await self.broadcast({'type': 'macro_log', 'name': name, 'message': f'Saved {display_name}.py'})
+
+        elif msg_type == 'fixture_list':
+            # Return current fixtures list
+            await ws.send(json.dumps({
+                'type': 'fixtures',
+                'fixtures': self.macros.fixtures
+            }))
+
+        elif msg_type == 'fixture_remove':
+            # Remove fixture by index
+            index = msg.get('index', -1)
+            if 0 <= index < len(self.macros.fixtures):
+                removed = self.macros.fixtures.pop(index)
+                await self.broadcast({
+                    'type': 'fixtures',
+                    'fixtures': self.macros.fixtures
+                })
+                await self.broadcast({
+                    'type': 'macro_log',
+                    'name': 'fixtures',
+                    'message': f'Removed fixture #{index + 1} at X{removed["x"]:.1f} Y{removed["y"]:.1f}'
+                })
+
+        elif msg_type == 'fixture_clear':
+            # Clear all fixtures
+            self.macros.fixtures.clear()
+            await self.broadcast({
+                'type': 'fixtures',
+                'fixtures': []
+            })
+            await self.broadcast({
+                'type': 'macro_log',
+                'name': 'fixtures',
+                'message': 'All fixtures cleared'
+            })
+
+        elif msg_type == 'check_collisions':
+            # Check loaded G-code against fixtures
+            collisions = self.macros.check_collisions()
+            await ws.send(json.dumps({
+                'type': 'collision_check',
+                'collisions': collisions,
+                'count': len(collisions)
+            }))
+            if collisions:
+                await self.broadcast({
+                    'type': 'macro_log',
+                    'name': 'collision_check',
+                    'message': f'WARNING: {len(collisions)} potential fixture collisions detected!'
+                })
 
     def load_html(self):
         """Load jog.html from same directory as script."""

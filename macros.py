@@ -47,6 +47,90 @@ class MacroEngine:
         # Tool diameter for probing macros (can be set before running)
         self.tool_diameter: float = TOOL_DIA_QUARTER  # Default to 1/4"
 
+        # Streamer reference (set by CNCServer for access to loaded G-code)
+        self.streamer = None
+
+        # Fixtures list: [{x, y, z, radius}, ...]
+        self.fixtures: list = []
+
+    @property
+    def loaded_gcode(self) -> str:
+        """Get loaded G-code from streamer as a single string."""
+        if self.streamer and hasattr(self.streamer, 'lines'):
+            return '\n'.join(self.streamer.lines)
+        return ''
+
+    async def broadcast_fixtures(self):
+        """Broadcast current fixtures list to clients."""
+        if self.broadcast_callback:
+            await self.broadcast_callback({
+                'type': 'fixtures',
+                'fixtures': self.fixtures
+            })
+
+    def check_collisions(self) -> list:
+        """
+        Check loaded G-code for collisions with fixtures.
+
+        Returns list of collisions: [{line, x, y, z, fixture_index}, ...]
+        """
+        import re
+        import math
+
+        if not self.loaded_gcode or not self.fixtures:
+            return []
+
+        collisions = []
+        current_x, current_y, current_z = 0.0, 0.0, 0.0
+        absolute_mode = True
+
+        for line_num, line in enumerate(self.loaded_gcode.splitlines(), 1):
+            line = line.split(';')[0].strip()
+            if not line:
+                continue
+
+            # Track G90/G91 mode
+            if re.search(r'\bG90\b', line, re.IGNORECASE):
+                absolute_mode = True
+            if re.search(r'\bG91\b', line, re.IGNORECASE):
+                absolute_mode = False
+
+            # Extract coordinates
+            x_match = re.search(r'X([-\d.]+)', line, re.IGNORECASE)
+            y_match = re.search(r'Y([-\d.]+)', line, re.IGNORECASE)
+            z_match = re.search(r'Z([-\d.]+)', line, re.IGNORECASE)
+
+            if x_match:
+                val = float(x_match.group(1))
+                current_x = val if absolute_mode else current_x + val
+            if y_match:
+                val = float(y_match.group(1))
+                current_y = val if absolute_mode else current_y + val
+            if z_match:
+                val = float(z_match.group(1))
+                current_z = val if absolute_mode else current_z + val
+
+            # Only check G1 moves (cutting moves)
+            if not re.match(r'G0*1\b', line, re.IGNORECASE):
+                continue
+
+            # Check against each fixture
+            for idx, fixture in enumerate(self.fixtures):
+                # Fixture is a cylinder: center at (x, y), top at z, radius
+                dist = math.sqrt((current_x - fixture['x'])**2 + (current_y - fixture['y'])**2)
+
+                # Collision if within radius AND below fixture top
+                if dist < fixture['radius'] and current_z <= fixture['z']:
+                    collisions.append({
+                        'line': line_num,
+                        'x': round(current_x, 3),
+                        'y': round(current_y, 3),
+                        'z': round(current_z, 3),
+                        'fixture_index': idx
+                    })
+
+        return collisions
+
     async def run_set_z(self):
         """
         Run the SetZ macro - exact CNCjs commands.
