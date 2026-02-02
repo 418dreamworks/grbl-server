@@ -998,13 +998,14 @@ class GrblServer:
         elif msg_type == 'macro_run':
             name = msg.get('name', '')
             tool_dia = msg.get('tool_diameter', 6.35)  # Default to 1/4"
+            edge_sign = msg.get('edge_sign', 0)  # -1=left/front, +1=right/back
             # Map button names to macro file names
             name_map = {
                 'set_z': 'tool_measure',
                 'tool_change': 'tool_change',
             }
             macro_name = name_map.get(name, name)
-            asyncio.create_task(self.macros.run_macro(macro_name, tool_diameter=tool_dia))
+            asyncio.create_task(self.macros.run_macro(macro_name, tool_diameter=tool_dia, edge_sign=edge_sign))
 
         elif msg_type == 'macro_continue':
             self.macros.continue_macro()

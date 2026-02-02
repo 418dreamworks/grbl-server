@@ -631,20 +631,33 @@
         </div>
     </div>
 
-    <!-- Probe Tool Diameter Modal -->
+    <!-- Probe Tool Diameter Modal (Step 1) -->
     <div class="modal" id="probeModal" onclick="if(event.target===this)closeProbeModal()">
         <div class="modal-content" style="min-width: 280px;">
             <h3>Select Tool Diameter</h3>
             <div style="display: flex; flex-direction: column; gap: 12px; margin: 15px 0;">
-                <button onclick="runProbeWithDia(6.35)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
+                <button onclick="selectProbeToolDia(6.35)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
                     1/4" (6.35mm)
                 </button>
-                <button onclick="runProbeWithDia(3.175)" style="padding: 15px; font-size: 16px; background: #2a4a4a; border-color: #3a6a6a;">
+                <button onclick="selectProbeToolDia(3.175)" style="padding: 15px; font-size: 16px; background: #2a4a4a; border-color: #3a6a6a;">
                     1/8" (3.175mm)
                 </button>
             </div>
             <div class="modal-buttons">
                 <button onclick="closeProbeModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Probe Edge Selection Modal (Step 2) -->
+    <div class="modal" id="probeEdgeModal" onclick="if(event.target===this)closeProbeEdgeModal()">
+        <div class="modal-content" style="min-width: 280px;">
+            <h3 id="probeEdgeTitle">Select Edge</h3>
+            <div id="probeEdgeButtons" style="display: flex; flex-direction: column; gap: 12px; margin: 15px 0;">
+                <!-- Filled by JS: LEFT/RIGHT for X, FRONT/BACK for Y -->
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeProbeEdgeModal()">Cancel</button>
             </div>
         </div>
     </div>
@@ -2020,6 +2033,7 @@
 
         // ========== ZERO PROBES ==========
         let pendingProbe = '';
+        let pendingToolDia = 0;
 
         function runProbe(name) {
             if (!connected) return;
@@ -2036,8 +2050,57 @@
         function closeProbeModal() {
             document.getElementById('probeModal').classList.remove('open');
             pendingProbe = '';
+            pendingToolDia = 0;
         }
 
+        function selectProbeToolDia(toolDiameter) {
+            // Step 1 complete - store diameter and show edge modal
+            pendingToolDia = toolDiameter;
+            document.getElementById('probeModal').classList.remove('open');
+
+            // Set up edge buttons based on X or Y probe
+            const edgeDiv = document.getElementById('probeEdgeButtons');
+            if (pendingProbe === 'probe_x') {
+                document.getElementById('probeEdgeTitle').textContent = 'X Probe - Select Edge';
+                edgeDiv.innerHTML = `
+                    <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">
+                        ← LEFT EDGE
+                    </button>
+                    <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
+                        RIGHT EDGE →
+                    </button>
+                `;
+            } else if (pendingProbe === 'probe_y') {
+                document.getElementById('probeEdgeTitle').textContent = 'Y Probe - Select Edge';
+                edgeDiv.innerHTML = `
+                    <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">
+                        ↓ FRONT EDGE
+                    </button>
+                    <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
+                        BACK EDGE ↑
+                    </button>
+                `;
+            }
+            document.getElementById('probeEdgeModal').classList.add('open');
+        }
+
+        function closeProbeEdgeModal() {
+            document.getElementById('probeEdgeModal').classList.remove('open');
+            pendingProbe = '';
+            pendingToolDia = 0;
+        }
+
+        function runProbeWithEdge(edgeSign) {
+            if (!pendingProbe || !pendingToolDia) return;
+            const edgeName = pendingProbe === 'probe_x'
+                ? (edgeSign < 0 ? 'LEFT' : 'RIGHT')
+                : (edgeSign < 0 ? 'FRONT' : 'BACK');
+            debugLog('=== PROBE: ' + pendingProbe + ' ' + edgeName + ' (tool=' + pendingToolDia + 'mm) ===', 'info');
+            wsSend({ type: 'macro_run', name: pendingProbe, tool_diameter: pendingToolDia, edge_sign: edgeSign });
+            closeProbeEdgeModal();
+        }
+
+        // Legacy function for other probes that only need diameter
         function runProbeWithDia(toolDiameter) {
             if (!pendingProbe) return;
             debugLog('=== PROBE: ' + pendingProbe + ' (tool=' + toolDiameter + 'mm) ===', 'info');

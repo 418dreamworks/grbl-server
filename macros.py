@@ -47,6 +47,9 @@ class MacroEngine:
         # Tool diameter for probing macros (can be set before running)
         self.tool_diameter: float = TOOL_DIA_QUARTER  # Default to 1/4"
 
+        # Edge sign for X/Y probes: -1=left/front, +1=right/back
+        self.edge_sign: int = -1  # Default to left/front edge
+
         # Streamer reference (set by CNCServer for access to loaded G-code)
         self.streamer = None
 
