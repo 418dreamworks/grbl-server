@@ -299,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.119</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.120</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -423,7 +423,7 @@
             <!-- PROBE -->
             <div style="font-size:14.5px; color:#888; text-align:center; margin-top:20px;">PROBE</div>
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
-                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="runProbe('probe_z')">Z</button>
+                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="runProbeZ()">Z</button>
                 <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_x')">X</button>
                 <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_y')">Y</button>
             </div>
@@ -2134,6 +2134,11 @@
             document.getElementById('probeEdgeModal').classList.remove('open');
             pendingMacro = '';
             pendingToolDia = 0;
+        }
+
+        function runProbeZ() {
+            debugLog('=== PROBE: Z ===', 'info');
+            wsSend({ type: 'macro_run', name: 'probe_z' });
         }
 
         function runProbeWithEdge(edgeSign) {
