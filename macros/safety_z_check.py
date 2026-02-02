@@ -1,11 +1,10 @@
-# Z Check
-# Parses loaded G-code to find lowest Z, moves tool to that depth
-# Visual sanity check - see if tool would hit spoilboard at deepest cut
-# No spindle, just Z movement at current XY
+# Z Check (Depth Verification)
+# Finds max Z depth in G-code, plunges to that depth and back
+# Visual check - verify clearance at cutting depth
 
 import re
 
-await self._log('=== Z CHECK ===')
+await self._log('=== Z CHECK (DEPTH) ===')
 
 # Parse G-code for Z values, accounting for G90/G91
 z_values = []
@@ -38,19 +37,22 @@ z_min = min(z_values)
 z_max = max(z_values)
 start_z = self.grbl.status['wpos']['z']
 
-await self._log(f'G-code Z range: {z_max:.3f} to {z_min:.3f}mm')
-await self._log(f'Moving to lowest Z: {z_min:.3f}mm')
+await self._log(f'G-code Z range: [{z_min:.3f}, {z_max:.3f}]')
+await self._log(f'Max depth: {z_min:.3f}mm')
+await self._log(f'Current Z: {start_z:.3f}mm')
+await self._log('Plunging at current XY...')
+await self._wait_for_continue()
 
-# Move to lowest Z (no spindle)
+# Plunge to lowest Z
 await self._send_and_log('G90')
-await self._send_and_log(f'G0 Z{z_min}')
+await self._send_and_log(f'G1 Z{z_min:.3f} F100')
 await self._wait_idle()
 
-await self._log('Check clearance - tool at deepest cut position')
+await self._log(f'At max depth Z{z_min:.3f}')
 await self._wait_for_continue()
 
 # Return to start
-await self._send_and_log(f'G0 Z{start_z}')
+await self._send_and_log(f'G0 Z{start_z:.3f}')
 await self._wait_idle()
 
 await self._log('=== Z CHECK COMPLETE ===')

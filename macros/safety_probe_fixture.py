@@ -93,15 +93,24 @@ diameter = radius * 2
 # Re-enable hard limits
 await self._send_and_log('$21=1')
 
-# Move to center
-await self._send_and_log(f'G0 X{x_center:.3f} Y{y_center:.3f}')
-await self._wait_idle()
-
 await self._log(f'Fixture center: X{x_center:.3f} Y{y_center:.3f}')
 await self._log(f'Diameter: {diameter:.1f}mm')
 
-# Z probe to find top surface
-await self._log('Probing Z (top surface)...')
+# Z probe at edge (not center - bolt in the way)
+# Move to edge: center + radius in direction of first contact point
+(px, py) = contact_points[0]
+dx = px - x_center
+dy = py - y_center
+dist = math.sqrt(dx**2 + dy**2)
+# Normalize and scale to radius (actual edge position)
+edge_x = x_center + (dx / dist) * radius
+edge_y = y_center + (dy / dist) * radius
+
+await self._send_and_log(f'G0 X{edge_x:.3f} Y{edge_y:.3f}')
+await self._wait_idle()
+
+await self._log(f'At edge: X{edge_x:.3f} Y{edge_y:.3f}')
+await self._log('Probing Z (top surface at edge)...')
 await self._send_and_log('G91')
 await self._send_and_log(f'G38.3 Z-10 F{PROBE_FEED}')
 await self._wait_idle()
@@ -114,21 +123,35 @@ if not self.grbl.last_probe['success']:
 
 z_top = self.grbl.status['wpos']['z']
 
-# Retract
+# Move to center at fixture top, set G59 zero there
+# Currently at edge, at z_top. Move to center first (stay at surface level)
+move_x = -(dx / dist) * radius
+move_y = -(dy / dist) * radius
+await self._send_and_log(f'G0 X{move_x:.3f} Y{move_y:.3f}')
+await self._wait_idle()
+
+# Now at center, on fixture surface - set G59 to X0 Y0 Z0 here
+await self._send_and_log('G10 L20 P6 X0 Y0 Z0')
+await self._log('G59 zeroed at fixture center/top')
+
+# Retract 5mm
 await self._send_and_log('G0 Z5')
 await self._wait_idle()
-await self._send_and_log('G90')
 
-await self._log(f'Fixture top Z: {z_top:.3f}mm')
+await self._log(f'Fixture top Z: {z_top:.3f}mm (in original coords)')
+await self._log('Switch to G59 for fixture-relative coords')
 
-# Store fixture
+# Store fixture in MACHINE coordinates (MPos = WPos + WCO)
+# Cylinder from mz (top) down to -infinity
+wco = self.grbl.status.get('wco', {'x': 0, 'y': 0, 'z': 0})
 fixture = {
-    'x': round(x_center, 3),
-    'y': round(y_center, 3),
-    'z': round(z_top, 3),
+    'mx': round(x_center + wco['x'], 3),  # machine X
+    'my': round(y_center + wco['y'], 3),  # machine Y
+    'mz': round(z_top + wco['z'], 3),     # machine Z (top of fixture)
     'radius': round(radius, 3)
 }
 self.fixtures.append(fixture)
+await self._log(f'Stored in MPos: X{fixture["mx"]:.3f} Y{fixture["my"]:.3f} Z{fixture["mz"]:.3f} R{fixture["radius"]:.1f}')
 
 # Broadcast updated fixtures list to client
 await self.broadcast_fixtures()

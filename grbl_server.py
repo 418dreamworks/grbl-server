@@ -50,6 +50,13 @@ RECOVERY_SAVE_INTERVAL = 100  # Save recovery every N lines
 LOG_DIR = 'logs'
 LOG_MAX_AGE_DAYS = 7
 
+# Start position enforcement (machine coordinates)
+# Tool must be near home corner before starting a job
+START_POS_TOLERANCE = 3.0  # mm tolerance for position check
+START_POS_X = -1.0  # Expected MPos X (near home)
+START_POS_Y = -1.0  # Expected MPos Y (near home)
+START_POS_Z = -1.0  # Expected MPos Z (near top)
+
 # SMS Notification via email-to-SMS gateway
 SMS_ENABLED = True
 SMS_SMTP_SERVER = 'smtp.gmail.com'
@@ -511,11 +518,32 @@ class FileStreamer:
         self.current_line = 0
         print(f'[Streamer] Loaded {filename}: {self.total_lines} lines')
 
-    async def start(self, from_line: int = 0):
+    async def start(self, from_line: int = 0, skip_position_check: bool = False):
         """Start streaming from specified line."""
         if not self.lines:
             print('[Streamer] No file loaded')
-            return
+            return False, 'No file loaded'
+
+        # Check start position (machine must be near home corner)
+        if not skip_position_check and from_line == 0:
+            mpos = self.grbl.status.mpos
+            dx = abs(mpos['x'] - START_POS_X)
+            dy = abs(mpos['y'] - START_POS_Y)
+            dz = abs(mpos['z'] - START_POS_Z)
+
+            if dx > START_POS_TOLERANCE or dy > START_POS_TOLERANCE or dz > START_POS_TOLERANCE:
+                msg = f'Start position check failed. Expected MPos near ({START_POS_X}, {START_POS_Y}, {START_POS_Z}), ' \
+                      f'got ({mpos["x"]:.1f}, {mpos["y"]:.1f}, {mpos["z"]:.1f}). ' \
+                      f'Move to home corner first (jog to X-1 Y-1 Z-1 in machine coords).'
+                print(f'[Streamer] {msg}')
+                if self.broadcast_callback:
+                    await self.broadcast_callback({
+                        'type': 'file_error',
+                        'line': 0,
+                        'gcode': '',
+                        'error': msg,
+                    })
+                return False, msg
 
         self.current_line = max(0, from_line)
         self.running = True
@@ -524,6 +552,7 @@ class FileStreamer:
 
         self.stream_task = asyncio.create_task(self._stream_loop())
         print(f'[Streamer] Started from line {self.current_line}')
+        return True, 'Started'
 
     async def _stream_loop(self):
         """Main streaming loop."""
@@ -572,8 +601,38 @@ class FileStreamer:
         self.running = False
         self._save_recovery()
 
-        if self.current_line >= self.total_lines:
+        if self.current_line >= self.total_lines and not self.stop_flag:
             print(f'[Streamer] Completed {self.filename}')
+
+            # Return to home position (Z first, then XY)
+            print('[Streamer] Returning to home position...')
+            if self.broadcast_callback:
+                await self.broadcast_callback({
+                    'type': 'file_status',
+                    'filename': self.filename,
+                    'current': self.total_lines,
+                    'total': self.total_lines,
+                    'percent': 100,
+                    'current_gcode': '; Returning to home...',
+                })
+
+            # Stop spindle first
+            await self.grbl.send_command('M5')
+            # Use machine coordinates for return-to-home
+            await self.grbl.send_command('G53 G0 Z-1')  # Z near top first
+            # Wait for Z move to complete
+            while True:
+                await asyncio.sleep(0.2)
+                if self.grbl.status.state == 'Idle':
+                    break
+            await self.grbl.send_command('G53 G0 X-1 Y-1')  # Then XY to home corner
+            # Wait for XY move
+            while True:
+                await asyncio.sleep(0.2)
+                if self.grbl.status.state == 'Idle':
+                    break
+
+            print('[Streamer] At home position')
             if self.broadcast_callback:
                 await self.broadcast_callback({
                     'type': 'file_done',
@@ -900,7 +959,13 @@ class GrblServer:
 
         elif msg_type == 'file_start':
             from_line = msg.get('from_line', 0)
-            await self.streamer.start(from_line)
+            skip_check = msg.get('skip_position_check', False)
+            # Skip position check if resuming from middle of file
+            if from_line > 0:
+                skip_check = True
+            success, error_msg = await self.streamer.start(from_line, skip_position_check=skip_check)
+            if not success:
+                await ws.send(json.dumps({'type': 'file_start_error', 'error': error_msg}))
 
         elif msg_type == 'file_pause':
             self.streamer.pause()

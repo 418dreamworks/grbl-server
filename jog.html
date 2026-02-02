@@ -765,6 +765,10 @@
                 case 'file_status':  handleFileStatus(msg); break;
                 case 'file_done':    handleFileDone(msg); break;
                 case 'file_error':   handleFileError(msg); break;
+                case 'file_start_error':
+                    debugLog('START ERROR: ' + msg.error, 'error');
+                    alert('Cannot start file: ' + msg.error);
+                    break;
                 case 'macro_status': handleMacroStatus(msg); break;
                 case 'macro_done':   handleMacroDone(msg); break;
                 case 'macro_error':  handleMacroError(msg); break;
