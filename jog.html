@@ -446,20 +446,19 @@
                 <div style="margin-top:20px;">
                     <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">ROTARY</div>
                     <div style="display: flex; gap: 4px;">
-                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="cmd('G10 L20 P1 A0')">Chuck Find</button>
-                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="runTailstockFind()">Tailstock Find</button>
+                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_chuck')">Chuck Find</button>
+                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_tailstock')">Tailstock</button>
                     </div>
                 </div>
                 <!-- MILLING -->
                 <div style="margin-top:20px;">
                     <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">MILLING</div>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-                        <button style="min-height:49px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="runBoring()">Boring</button>
-                        <button style="min-height:49px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="runFacing()">Facing</button>
-                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="runLineContour()">Line Contour</button>
-                        <button style="min-height:49px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="runODMilling()">OD Slot</button>
-                        <button style="min-height:49px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="runSlotting()">Line Slot</button>
-                        <button style="min-height:49px; background:#4a4a3a; border-color:#6a6a5a; font-size:11px;" onclick="runODContour()">OD Contour</button>
+                        <button style="min-height:49px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="showToolDiaModal('milling_boring')">Boring</button>
+                        <button style="min-height:49px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_facing')">Facing</button>
+                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_drill')">Drill</button>
+                        <button style="min-height:49px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="showToolDiaModal('milling_line_contour')">Line</button>
+                        <button style="min-height:49px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="showToolDiaModal('milling_od_contour')">OD</button>
                     </div>
                 </div>
                 <!-- SAFETY -->
@@ -2031,81 +2030,120 @@
             wsSend({ type: 'macro_run', name: name });
         }
 
-        // ========== ZERO PROBES ==========
-        let pendingProbe = '';
+        // ========== TOOL DIAMETER MODAL ==========
+        let pendingMacro = '';
         let pendingToolDia = 0;
 
-        function runProbe(name) {
+        function showToolDiaModal(macroName) {
             if (!connected) return;
-            debugLog('=== PROBE: ' + name + ' ===', 'info');
-            wsSend({ type: 'macro_run', name: name });
+            pendingMacro = macroName;
+            document.getElementById('probeModal').classList.add('open');
         }
 
         function showProbeModal(probeName) {
-            if (!connected) return;
-            pendingProbe = probeName;
-            document.getElementById('probeModal').classList.add('open');
+            showToolDiaModal(probeName);
         }
 
         function closeProbeModal() {
             document.getElementById('probeModal').classList.remove('open');
-            pendingProbe = '';
+            pendingMacro = '';
             pendingToolDia = 0;
         }
 
         function selectProbeToolDia(toolDiameter) {
-            // Step 1 complete - store diameter and show edge modal
             pendingToolDia = toolDiameter;
             document.getElementById('probeModal').classList.remove('open');
 
-            // Set up edge buttons based on X or Y probe
-            const edgeDiv = document.getElementById('probeEdgeButtons');
-            if (pendingProbe === 'probe_x') {
-                document.getElementById('probeEdgeTitle').textContent = 'X Probe - Select Edge';
-                edgeDiv.innerHTML = `
-                    <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">
-                        LEFT EDGE
-                    </button>
-                    <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
-                        RIGHT EDGE
-                    </button>
-                `;
-            } else if (pendingProbe === 'probe_y') {
-                document.getElementById('probeEdgeTitle').textContent = 'Y Probe - Select Edge';
-                edgeDiv.innerHTML = `
-                    <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">
-                        FRONT EDGE
-                    </button>
-                    <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
-                        BACK EDGE
-                    </button>
-                `;
+            // X/Y probes need edge selection
+            if (pendingMacro === 'probe_x' || pendingMacro === 'probe_y') {
+                const edgeDiv = document.getElementById('probeEdgeButtons');
+                if (pendingMacro === 'probe_x') {
+                    document.getElementById('probeEdgeTitle').textContent = 'X Probe - Select Edge';
+                    edgeDiv.innerHTML = `
+                        <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">LEFT EDGE</button>
+                        <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">RIGHT EDGE</button>
+                    `;
+                } else {
+                    document.getElementById('probeEdgeTitle').textContent = 'Y Probe - Select Edge';
+                    edgeDiv.innerHTML = `
+                        <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">FRONT EDGE</button>
+                        <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">BACK EDGE</button>
+                    `;
+                }
+                document.getElementById('probeEdgeModal').classList.add('open');
+                return;
             }
-            document.getElementById('probeEdgeModal').classList.add('open');
+
+            // Rotary macros - run directly with tool diameter
+            if (pendingMacro === 'rotary_chuck' || pendingMacro === 'rotary_tailstock') {
+                debugLog('=== MACRO: ' + pendingMacro + ' (tool=' + toolDiameter + 'mm) ===', 'info');
+                wsSend({ type: 'macro_run', name: pendingMacro, tool_diameter: toolDiameter });
+                pendingMacro = '';
+                pendingToolDia = 0;
+                return;
+            }
+
+            // Milling macros - need additional parameters
+            if (pendingMacro === 'milling_boring') {
+                const dia = prompt('Bore diameter (mm)?', '10');
+                if (!dia) { pendingMacro = ''; return; }
+                const depth = prompt('Bore depth (mm)?', '5');
+                if (!depth) { pendingMacro = ''; return; }
+                debugLog('=== MACRO: milling_boring (tool=' + toolDiameter + 'mm) ===', 'info');
+                wsSend({ type: 'macro_run', name: 'milling_boring', tool_diameter: toolDiameter, bore_dia: parseFloat(dia), depth: parseFloat(depth) });
+            } else if (pendingMacro === 'milling_facing') {
+                const length = prompt('Length X (mm)?', '50');
+                if (!length) { pendingMacro = ''; return; }
+                const width = prompt('Width Y (mm)?', '50');
+                if (!width) { pendingMacro = ''; return; }
+                const depth = prompt('Depth (mm)?', '1');
+                if (!depth) { pendingMacro = ''; return; }
+                debugLog('=== MACRO: milling_facing (tool=' + toolDiameter + 'mm) ===', 'info');
+                wsSend({ type: 'macro_run', name: 'milling_facing', tool_diameter: toolDiameter, length: parseFloat(length), width: parseFloat(width), depth: parseFloat(depth) });
+            } else if (pendingMacro === 'milling_drill') {
+                const depth = prompt('Drill depth (mm)?', '10');
+                if (!depth) { pendingMacro = ''; return; }
+                debugLog('=== MACRO: milling_drill (tool=' + toolDiameter + 'mm) ===', 'info');
+                wsSend({ type: 'macro_run', name: 'milling_drill', tool_diameter: toolDiameter, depth: parseFloat(depth) });
+            } else if (pendingMacro === 'milling_line_contour') {
+                const endX = prompt('End X (mm, relative)?', '50');
+                if (!endX) { pendingMacro = ''; return; }
+                const endY = prompt('End Y (mm, relative)?', '0');
+                if (!endY) { pendingMacro = ''; return; }
+                const width = prompt('Width (mm, 0=slot)?', '0');
+                if (width === null) { pendingMacro = ''; return; }
+                const depth = prompt('Depth (mm)?', '5');
+                if (!depth) { pendingMacro = ''; return; }
+                debugLog('=== MACRO: milling_line_contour (tool=' + toolDiameter + 'mm) ===', 'info');
+                wsSend({ type: 'macro_run', name: 'milling_line_contour', tool_diameter: toolDiameter, end_x: parseFloat(endX), end_y: parseFloat(endY), width: parseFloat(width), depth: parseFloat(depth) });
+            } else if (pendingMacro === 'milling_od_contour') {
+                const startDia = prompt('Start diameter (mm)?', '10');
+                if (!startDia) { pendingMacro = ''; return; }
+                const endDia = prompt('End diameter (mm)?', '20');
+                if (!endDia) { pendingMacro = ''; return; }
+                const depth = prompt('Depth (mm)?', '5');
+                if (!depth) { pendingMacro = ''; return; }
+                debugLog('=== MACRO: milling_od_contour (tool=' + toolDiameter + 'mm) ===', 'info');
+                wsSend({ type: 'macro_run', name: 'milling_od_contour', tool_diameter: toolDiameter, start_dia: parseFloat(startDia), end_dia: parseFloat(endDia), depth: parseFloat(depth) });
+            }
+            pendingMacro = '';
+            pendingToolDia = 0;
         }
 
         function closeProbeEdgeModal() {
             document.getElementById('probeEdgeModal').classList.remove('open');
-            pendingProbe = '';
+            pendingMacro = '';
             pendingToolDia = 0;
         }
 
         function runProbeWithEdge(edgeSign) {
-            if (!pendingProbe || !pendingToolDia) return;
-            const edgeName = pendingProbe === 'probe_x'
+            if (!pendingMacro || !pendingToolDia) return;
+            const edgeName = pendingMacro === 'probe_x'
                 ? (edgeSign < 0 ? 'LEFT' : 'RIGHT')
                 : (edgeSign < 0 ? 'FRONT' : 'BACK');
-            debugLog('=== PROBE: ' + pendingProbe + ' ' + edgeName + ' (tool=' + pendingToolDia + 'mm) ===', 'info');
-            wsSend({ type: 'macro_run', name: pendingProbe, tool_diameter: pendingToolDia, edge_sign: edgeSign });
+            debugLog('=== PROBE: ' + pendingMacro + ' ' + edgeName + ' (tool=' + pendingToolDia + 'mm) ===', 'info');
+            wsSend({ type: 'macro_run', name: pendingMacro, tool_diameter: pendingToolDia, edge_sign: edgeSign });
             closeProbeEdgeModal();
-        }
-
-        // Legacy function for other probes that only need diameter
-        function runProbeWithDia(toolDiameter) {
-            if (!pendingProbe) return;
-            debugLog('=== PROBE: ' + pendingProbe + ' (tool=' + toolDiameter + 'mm) ===', 'info');
-            wsSend({ type: 'macro_run', name: pendingProbe, tool_diameter: toolDiameter });
-            closeProbeModal();
         }
 
         // ========== UNITS ==========

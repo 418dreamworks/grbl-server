@@ -13,6 +13,7 @@ doc = self.tool_diameter * DOC_RATIO
 stepover = self.tool_diameter * STEPOVER_RATIO
 
 await self._log(f'=== FACING START: {self.length}x{self.width}mm, depth={self.depth}mm ===')
+await self._log(f'Tool: {self.tool_diameter}mm, DOC: {doc:.2f}mm, Stepover: {stepover:.2f}mm')
 
 await self._send_and_log('G91')
 await self._send_and_log(f'M3 S{SPINDLE_RPM}')

@@ -1,78 +1,38 @@
 # Rotary Chuck Find
-# Probes X (right), Y (front), Z and sets coordinates for centerline = (0,0,0)
+# Runs probe_x, probe_y, probe_z, then shifts origin by chuck offsets
+
+import os
+macro_dir = os.path.dirname(__file__)
 
 r = self.tool_diameter / 2
 
-# Chuck offsets: probed corner relative to centerline
-CHUCK_X_OFFSET = -50
-CHUCK_Y_OFFSET = -20
-CHUCK_Z_OFFSET = 26
-
 await self._log('=== CHUCK FIND ===')
-await self._send_and_log('G91')
 
-# X PROBE (right edge)
-await self._send_and_log(f'G0 X{6 + r}')
-await self._wait_idle()
-await self._send_and_log('G38.3 Z-6 F100')
-await self._wait_idle()
-if self.grbl.last_probe['success']:
-    await self._log('ERROR: Unexpected X plunge contact')
-    return
-await self._send_and_log('G38.3 X-6 F50')
-await self._wait_idle()
-if not self.grbl.last_probe['success']:
-    await self._log('ERROR: No X contact')
-    return
-await self._send_and_log('G0 X1')
-await self._send_and_log('G38.3 X-2 F10')
-await self._wait_idle()
-await self._send_and_log('G90')
-await self._send_and_log(f'G10 L20 P1 X{CHUCK_X_OFFSET - r}')
-await self._log(f'X set to {CHUCK_X_OFFSET - r:.3f}')
-await self._send_and_log('G91')
-await self._send_and_log('G0 Z6')
-await self._wait_idle()
+# Run probe_x (right edge)
+self.edge_sign = 1
+exec(compile(open(os.path.join(macro_dir, 'probe_x.py')).read(), 'probe_x.py', 'exec'))
 
-# Y PROBE (front edge)
-await self._send_and_log(f'G0 Y{-(6 + r)}')
-await self._wait_idle()
-await self._send_and_log('G38.3 Z-6 F100')
-await self._wait_idle()
-if self.grbl.last_probe['success']:
-    await self._log('ERROR: Unexpected Y plunge contact')
-    return
-await self._send_and_log('G38.3 Y6 F50')
-await self._wait_idle()
-if not self.grbl.last_probe['success']:
-    await self._log('ERROR: No Y contact')
-    return
-await self._send_and_log('G0 Y-1')
-await self._send_and_log('G38.3 Y2 F10')
-await self._wait_idle()
-await self._send_and_log('G90')
-await self._send_and_log(f'G10 L20 P1 Y{CHUCK_Y_OFFSET + r}')
-await self._log(f'Y set to {CHUCK_Y_OFFSET + r:.3f}')
-await self._send_and_log('G91')
-await self._send_and_log('G0 Z6')
-await self._wait_idle()
+# Apply X offset: add -50 to current position
+x = self.grbl.status.wpos['x']
+await self._send_and_log(f'G10 L20 P1 X{x - 50}')
+await self._log(f'X offset: {x} -> {x - 50}')
 
-# Z PROBE
-await self._send_and_log('G38.2 Z-11 F50')
-await self._wait_idle()
-await self._send_and_log('G0 Z2.5')
-await self._send_and_log('G38.2 Z-3 F10')
-await self._wait_idle()
-await self._send_and_log('G90')
-await self._send_and_log(f'G10 L20 P1 Z{CHUCK_Z_OFFSET}')
-await self._log(f'Z set to {CHUCK_Z_OFFSET}')
+# Run probe_y (front edge)
+self.edge_sign = -1
+exec(compile(open(os.path.join(macro_dir, 'probe_y.py')).read(), 'probe_y.py', 'exec'))
 
-# Move to centerline
-await self._send_and_log('G91')
-await self._send_and_log('G0 Z20')
-await self._send_and_log('G0 Y50')
-await self._wait_idle()
-await self._send_and_log('G90')
+# Apply Y offset: add -20 to current position
+y = self.grbl.status.wpos['y']
+await self._send_and_log(f'G10 L20 P1 Y{y - 20}')
+await self._log(f'Y offset: {y} -> {y - 20}')
+
+# Run probe_z
+exec(compile(open(os.path.join(macro_dir, 'probe_z.py')).read(), 'probe_z.py', 'exec'))
+
+# Apply Z offset: add +26 to current position
+z = self.grbl.status.wpos['z']
+await self._send_and_log(f'G10 L20 P1 Z{z + 26}')
+await self._log(f'Z offset: {z} -> {z + 26}')
 
 await self._log('Centerline at (0, 0, 0)')
 await self._log('=== CHUCK FIND COMPLETE ===')
