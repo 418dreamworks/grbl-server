@@ -17,14 +17,14 @@ await self._wait_idle()
 await self._send_and_log('G38.2 Z-3 F10')
 await self._wait_idle()
 
-# Back to absolute mode
-await self._send_and_log('G90')
-
-# Set Z to plate thickness (22mm)
+# Set Z to plate thickness (22mm) - still in relative mode, but G10 is always absolute
 await self._send_and_log('G10 L20 P1 Z22.000')
 
-# Raise to safe height
-await self._send_and_log('G0 Z32.000')
+# Raise 10mm from surface (relative to avoid pushing past Z home)
+await self._send_and_log('G0 Z10')
+
+# Back to absolute mode
+await self._send_and_log('G90')
 
 await self._log('Z set to 22mm (plate thickness)')
 await self._log('=== Z PROBE COMPLETE ===')

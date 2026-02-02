@@ -299,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.122</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.123</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -1400,8 +1400,15 @@
             if (axis === 'A') targetA += dist;
 
             if (!isWithinLimits(targetX, targetY, targetZ, targetA)) {
-                showBlocked('BLOCKED: ' + axis + (dist > 0 ? '+' : '') + dist + ' \u2192 ' +
-                    (axis === 'X' ? targetX : axis === 'Y' ? targetY : axis === 'Z' ? targetZ : targetA).toFixed(1));
+                // Show which axis is actually blocking
+                let reason = '';
+                if (targetX > 0.01) reason = 'X>' + targetX.toFixed(1);
+                else if (targetX < -workMaxX) reason = 'X<' + targetX.toFixed(1);
+                else if (targetY > 0.01) reason = 'Y>' + targetY.toFixed(1);
+                else if (targetY < -workMaxY) reason = 'Y<' + targetY.toFixed(1);
+                else if (targetZ > 0.01) reason = 'Z>' + targetZ.toFixed(1);
+                else if (targetZ < -workMaxZ) reason = 'Z<' + targetZ.toFixed(1);
+                showBlocked('BLOCKED: ' + reason + ' (pending: X=' + pendingX.toFixed(0) + ' Y=' + pendingY.toFixed(0) + ' Z=' + pendingZ.toFixed(0) + ')');
                 return;
             }
 
@@ -2068,8 +2075,8 @@
                     document.getElementById('probeEdgeTitle').textContent = 'Y Probe - Select Edge';
                     edgeDiv.style.flexDirection = 'column';
                     edgeDiv.innerHTML = `
-                        <button onclick="runProbeWithEdge(1)" style="flex: 1; padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">BACK (away)</button>
-                        <button onclick="runProbeWithEdge(-1)" style="flex: 1; padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">FRONT (toward you)</button>
+                        <button onclick="runProbeWithEdge(1)" style="flex: 1; padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">BACK</button>
+                        <button onclick="runProbeWithEdge(-1)" style="flex: 1; padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">FRONT</button>
                     `;
                 }
                 document.getElementById('probeEdgeModal').classList.add('open');

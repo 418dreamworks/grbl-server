@@ -16,31 +16,37 @@ async def run_sub_macro(filename):
 
 await self._log('=== CHUCK FIND ===')
 
-# Run probe_x (right edge)
+# Run probe_x (right edge, edge_sign=1)
+# probe_x sets X = 7+r at contact point
 self.edge_sign = 1
 await run_sub_macro('probe_x.py')
 
-# Apply X offset: add -50 to current position
-x = self.grbl.status.wpos['x']
-await self._send_and_log(f'G10 L20 P1 X{x - 50}')
-await self._log(f'X offset: {x} -> {x - 50}')
+# Apply X offset: probe sets X = 7+r, chuck centerline is 50mm from probe edge
+# New X at probe contact = (7+r) - 50
+probe_x_value = 7 + r
+await self._send_and_log(f'G10 L20 P1 X{probe_x_value - 50}')
+await self._log(f'X: probe={probe_x_value:.3f}, chuck={probe_x_value - 50:.3f}')
 
-# Run probe_y (front edge)
+# Run probe_y (front edge, edge_sign=-1)
+# probe_y sets Y = -(7+r) at contact point
 self.edge_sign = -1
 await run_sub_macro('probe_y.py')
 
-# Apply Y offset: add -20 to current position
-y = self.grbl.status.wpos['y']
-await self._send_and_log(f'G10 L20 P1 Y{y - 20}')
-await self._log(f'Y offset: {y} -> {y - 20}')
+# Apply Y offset: probe sets Y = -(7+r), chuck centerline is 20mm from probe edge
+# New Y at probe contact = -(7+r) - 20
+probe_y_value = -(7 + r)
+await self._send_and_log(f'G10 L20 P1 Y{probe_y_value - 20}')
+await self._log(f'Y: probe={probe_y_value:.3f}, chuck={probe_y_value - 20:.3f}')
 
 # Run probe_z
+# probe_z sets Z = 22 at contact point (plate thickness)
 await run_sub_macro('probe_z.py')
 
-# Apply Z offset: add +26 to current position
-z = self.grbl.status.wpos['z']
-await self._send_and_log(f'G10 L20 P1 Z{z + 26}')
-await self._log(f'Z offset: {z} -> {z + 26}')
+# Apply Z offset: probe sets Z = 22, chuck surface is 26mm above probe plate
+# New Z at probe contact = 22 + 26 = 48
+probe_z_value = 22
+await self._send_and_log(f'G10 L20 P1 Z{probe_z_value + 26}')
+await self._log(f'Z: probe={probe_z_value:.3f}, chuck={probe_z_value + 26:.3f}')
 
-await self._log('Centerline at (0, 0, 0)')
+await self._log('Chuck centerline at (0, 0, 0)')
 await self._log('=== CHUCK FIND COMPLETE ===')
