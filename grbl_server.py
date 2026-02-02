@@ -197,6 +197,7 @@ class GrblConnection:
         self.broadcast_callback = None
         self.wco_cached: Dict[str, float] = {'x': 0, 'y': 0, 'z': 0, 'a': 0}
         self.g28_pos: Dict[str, float] = {'x': 0, 'y': 0, 'z': 0, 'a': 0}
+        self.last_probe: Dict[str, Any] = {'x': 0, 'y': 0, 'z': 0, 'a': 0, 'success': False}
         self.logger = logger
 
     async def connect(self, port: str, baud: int = DEFAULT_BAUD_RATE) -> bool:
@@ -416,14 +417,20 @@ class GrblConnection:
         if match:
             coords = match.group(1).split(',')
             success = match.group(2) == '1'
+
+            # Store for macro access
+            self.last_probe = {
+                'success': success,
+                'x': float(coords[0]) if len(coords) > 0 else 0,
+                'y': float(coords[1]) if len(coords) > 1 else 0,
+                'z': float(coords[2]) if len(coords) > 2 else 0,
+                'a': float(coords[3]) if len(coords) > 3 else 0,
+            }
+
             if self.broadcast_callback:
                 asyncio.create_task(self.broadcast_callback({
                     'type': 'probe',
-                    'success': success,
-                    'x': float(coords[0]) if len(coords) > 0 else 0,
-                    'y': float(coords[1]) if len(coords) > 1 else 0,
-                    'z': float(coords[2]) if len(coords) > 2 else 0,
-                    'a': float(coords[3]) if len(coords) > 3 else 0,
+                    **self.last_probe
                 }))
 
     async def _poll_status(self):
