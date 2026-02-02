@@ -1,53 +1,41 @@
 # Rotary Tailstock Square Check
-# Probes Y on tailstock to verify square with chuck centerline
-# Reports deviation - does NOT set coordinates
-# Run Chuck Find first to establish centerline reference
+# Probes Y to verify tailstock is aligned with chuck centerline
+
+import os
+macro_dir = os.path.dirname(__file__)
 
 r = self.tool_diameter / 2
-
-# Tailstock: 17.6mm from centerline to probe edge
-TAILSTOCK_EDGE_OFFSET = 7 + 21.2/2
+TAILSTOCK_OFFSET = 17.6  # mm from probe Y=0 to tailstock centerline
 ALIGNMENT_TOLERANCE = 0.05
 
 await self._log('=== TAILSTOCK SQUARE CHECK ===')
-await self._send_and_log('G91')
+await self._log('NOTE: Run Chuck Find first to establish centerline reference')
 
-# Y PROBE (bottom edge - toward chuck)
-await self._send_and_log(f'G0 Y{6 + r}')
-await self._wait_idle()
-await self._send_and_log('G38.3 Z-6 F100')
-await self._wait_idle()
-if self.grbl.last_probe['success']:
-    await self._log('ERROR: Unexpected plunge contact')
-    return
-await self._send_and_log('G38.3 Y-6 F50')
-await self._wait_idle()
-if not self.grbl.last_probe['success']:
-    await self._log('ERROR: No Y contact')
-    return
-await self._send_and_log('G0 Y1')
-await self._send_and_log('G38.3 Y-2 F10')
-await self._wait_idle()
+# Record Y position (chuck coordinate system, Y=0 is chuck centerline)
+recorded_y = self.grbl.status.wpos['y']
+await self._log(f'Current Y (chuck coords): {recorded_y:.3f}mm')
 
-# Read probed Y and calculate deviation
-probed_y = self.grbl.status.wpos['y']
-expected_y = -(r + TAILSTOCK_EDGE_OFFSET)
-y_deviation = probed_y - expected_y
+# Run probe_y (front edge toward chuck)
+self.edge_sign = -1
+exec(compile(open(os.path.join(macro_dir, 'probe_y.py')).read(), 'probe_y.py', 'exec'))
 
-# Retract
-await self._send_and_log('G0 Z6')
-await self._send_and_log(f'G0 Y{-(6 + r)}')
-await self._send_and_log('G90')
-await self._wait_idle()
+# Get Y after probe_y (probe coordinate system)
+current_y = self.grbl.status.wpos['y']
 
-# Report
-await self._log(f'Probed Y: {probed_y:.3f}mm (expected {expected_y:.3f}mm)')
-await self._log(f'Deviation: {y_deviation:.3f}mm')
+# Tailstock centerline is 17.6mm above probe Y=0
+# Convert to chuck coords: tailstock_y = 17.6 + (recorded_y - current_y)
+tailstock_y = TAILSTOCK_OFFSET + (recorded_y - current_y)
 
-if abs(y_deviation) <= ALIGNMENT_TOLERANCE:
-    await self._log('SQUARE: Within 0.05mm tolerance')
+# Restore chuck coordinate system
+await self._send_and_log(f'G10 L20 P1 Y{recorded_y}')
+
+# Report deviation from chuck centerline (Y=0)
+await self._log(f'Tailstock centerline: Y = {tailstock_y:.3f}mm (should be 0.00)')
+
+if abs(tailstock_y) <= ALIGNMENT_TOLERANCE:
+    await self._log('SQUARE: Tailstock aligned within 0.05mm')
 else:
-    tap_direction = 'FRONT' if y_deviation > 0 else 'BACK'
-    await self._log(f'Tap tailstock toward {tap_direction} by {abs(y_deviation):.3f}mm')
+    tap_direction = 'BACK' if tailstock_y > 0 else 'FRONT'
+    await self._log(f'TAP TAILSTOCK toward {tap_direction} by {abs(tailstock_y):.3f}mm')
 
 await self._log('=== TAILSTOCK CHECK COMPLETE ===')
