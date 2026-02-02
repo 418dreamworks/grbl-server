@@ -8,6 +8,14 @@ r = self.tool_diameter / 2
 TAILSTOCK_OFFSET = 17.6  # mm from probe Y=0 to tailstock centerline
 ALIGNMENT_TOLERANCE = 0.05
 
+# Helper to run a sub-macro (wraps in async function like MacroEngine does)
+async def run_sub_macro(filename):
+    code = open(os.path.join(macro_dir, filename)).read()
+    ns = {'self': self, 'asyncio': asyncio, 'math': math, 'macro_dir': macro_dir}
+    wrapped = "async def _sub():\n" + '\n'.join('    ' + line for line in code.split('\n'))
+    exec(wrapped, ns)
+    await ns['_sub']()
+
 await self._log('=== TAILSTOCK SQUARE CHECK ===')
 await self._log('NOTE: Run Chuck Find first to establish centerline reference')
 
@@ -17,7 +25,7 @@ await self._log(f'Current Y (chuck coords): {recorded_y:.3f}mm')
 
 # Run probe_y (front edge toward chuck)
 self.edge_sign = -1
-exec(compile(open(os.path.join(macro_dir, 'probe_y.py')).read(), 'probe_y.py', 'exec'))
+await run_sub_macro('probe_y.py')
 
 # Get Y after probe_y (probe coordinate system)
 current_y = self.grbl.status.wpos['y']
