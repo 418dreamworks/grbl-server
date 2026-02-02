@@ -2,7 +2,7 @@
 # Runs probe_x, probe_y, probe_z, then shifts origin by chuck offsets
 
 import os
-macro_dir = os.path.dirname(__file__)
+# macro_dir is provided by MacroEngine namespace
 
 r = self.tool_diameter / 2
 

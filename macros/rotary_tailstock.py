@@ -2,7 +2,7 @@
 # Probes Y to verify tailstock is aligned with chuck centerline
 
 import os
-macro_dir = os.path.dirname(__file__)
+# macro_dir is provided by MacroEngine namespace
 
 r = self.tool_diameter / 2
 TAILSTOCK_OFFSET = 17.6  # mm from probe Y=0 to tailstock centerline

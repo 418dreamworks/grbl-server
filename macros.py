@@ -863,10 +863,12 @@ class MacroEngine:
 
             # Create namespace with access to self and common imports
             import math
+            macro_dir = str(macro_path.parent)
             namespace = {
                 'self': self,
                 'asyncio': asyncio,
                 'math': math,
+                'macro_dir': macro_dir,
             }
 
             # Wrap code in async function and execute

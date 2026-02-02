@@ -299,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.120</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.121</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -2059,15 +2059,17 @@
                 const edgeDiv = document.getElementById('probeEdgeButtons');
                 if (pendingMacro === 'probe_x') {
                     document.getElementById('probeEdgeTitle').textContent = 'X Probe - Select Edge';
+                    edgeDiv.style.flexDirection = 'row';
                     edgeDiv.innerHTML = `
-                        <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">LEFT EDGE</button>
-                        <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">RIGHT EDGE</button>
+                        <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">LEFT</button>
+                        <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">RIGHT</button>
                     `;
                 } else {
                     document.getElementById('probeEdgeTitle').textContent = 'Y Probe - Select Edge';
+                    edgeDiv.style.flexDirection = 'column';
                     edgeDiv.innerHTML = `
-                        <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">FRONT EDGE</button>
-                        <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">BACK EDGE</button>
+                        <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">BACK (away)</button>
+                        <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">FRONT (toward you)</button>
                     `;
                 }
                 document.getElementById('probeEdgeModal').classList.add('open');
