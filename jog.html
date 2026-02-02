@@ -299,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.127</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.128</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -456,7 +456,7 @@
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
                         <button style="min-height:49px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="showToolDiaModal('milling_boring')">Boring</button>
                         <button style="min-height:49px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_facing')">Facing</button>
-                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="runDrillMacro()">Drill</button>
+                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_drill')">Drill</button>
                         <button style="min-height:49px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="showToolDiaModal('milling_line_contour')">Line</button>
                         <button style="min-height:49px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="showToolDiaModal('milling_od_contour')">OD</button>
                     </div>
@@ -641,6 +641,15 @@
                 <button onclick="selectProbeToolDia(3.175)" style="padding: 15px; font-size: 16px; background: #2a4a4a; border-color: #3a6a6a;">
                     1/8" (3.175mm)
                 </button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="number" id="customToolDia" step="0.001" placeholder="Custom"
+                           style="flex: 1; padding: 12px; font-size: 16px; background: #222; border: 1px solid #555; color: #fff; border-radius: 4px;">
+                    <select id="customToolDiaUnit" style="padding: 12px; font-size: 16px; background: #222; border: 1px solid #555; color: #fff; border-radius: 4px;">
+                        <option value="mm">mm</option>
+                        <option value="in">in</option>
+                    </select>
+                    <button onclick="selectCustomToolDia()" style="padding: 12px 16px; font-size: 16px;">OK</button>
+                </div>
             </div>
             <div class="modal-buttons">
                 <button onclick="closeProbeModal()">Cancel</button>
@@ -2034,17 +2043,6 @@
             wsSend({ type: 'macro_run', name: name });
         }
 
-        // ========== DRILL MACRO (free-form input) ==========
-        function runDrillMacro() {
-            if (!connected) return;
-            const toolDia = prompt('Tool diameter (mm)?', '6.35');
-            if (!toolDia) return;
-            const depth = prompt('Drill depth (mm)?', '10');
-            if (!depth) return;
-            debugLog('=== MACRO: milling_drill (tool=' + toolDia + 'mm) ===', 'info');
-            wsSend({ type: 'macro_run', name: 'milling_drill', tool_diameter: parseFloat(toolDia), depth: parseFloat(depth) });
-        }
-
         // ========== TOOL DIAMETER MODAL ==========
         let pendingMacro = '';
         let pendingToolDia = 0;
@@ -2061,8 +2059,19 @@
 
         function closeProbeModal() {
             document.getElementById('probeModal').classList.remove('open');
+            document.getElementById('customToolDia').value = '';
             pendingMacro = '';
             pendingToolDia = 0;
+        }
+
+        function selectCustomToolDia() {
+            const input = document.getElementById('customToolDia');
+            const unit = document.getElementById('customToolDiaUnit').value;
+            let value = parseFloat(input.value);
+            if (isNaN(value) || value <= 0) return;
+            // Convert to mm if inches
+            if (unit === 'in') value *= 25.4;
+            selectProbeToolDia(value);
         }
 
         function selectProbeToolDia(toolDiameter) {
@@ -2101,7 +2110,12 @@
             }
 
             // Milling macros - need additional parameters
-            if (pendingMacro === 'milling_boring') {
+            if (pendingMacro === 'milling_drill') {
+                const depth = prompt('Drill depth (mm)?', '10');
+                if (!depth) { pendingMacro = ''; return; }
+                debugLog('=== MACRO: milling_drill (tool=' + toolDiameter + 'mm) ===', 'info');
+                wsSend({ type: 'macro_run', name: 'milling_drill', tool_diameter: toolDiameter, depth: parseFloat(depth) });
+            } else if (pendingMacro === 'milling_boring') {
                 const dia = prompt('Bore diameter (mm)?', '10');
                 if (!dia) { pendingMacro = ''; return; }
                 const depth = prompt('Bore depth (mm)?', '5');

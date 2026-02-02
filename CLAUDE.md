@@ -14,14 +14,16 @@ Verify: `ssh linuxcnc 'pgrep -f grbl_server'`
 
 - Version is in `jog.html` (search for `v1.`)
 - **Increment version on every deploy**
-- Current: v1.127
+- Current: v1.128
 
 ## Key Architecture
 
 ### Macros
 - All macros in `macros/` directory
 - Config values (DOC_RATIO, SPINDLE_RPM, etc.) in `config.py`
-- Macros use `exec()` - must use `macro_dir` not `__file__` for imports
+- **Current:** `exec()` hot-reload for development (edit macros without restart)
+- **Future:** Stable macros will become importable library
+- Must use `macro_dir` not `__file__` (undefined in exec context)
 - Import pattern: `sys.path.insert(0, os.path.dirname(macro_dir))`
 
 ### Macro Methods Available
@@ -31,6 +33,7 @@ Verify: `ssh linuxcnc 'pgrep -f grbl_server'`
 | `await self._wait_idle()` | Wait for Idle state |
 | `await self._log(message)` | Log to console |
 | `await self._wait_for_continue()` | Pause for user Continue |
+| `await self._get_distance_mode()` | Returns 'G90' or 'G91' (for save/restore) |
 | `self.grbl.status.wpos` | Work position dict {x,y,z,a} |
 | `self.grbl.status.mpos` | Machine position dict |
 | `self.grbl.last_probe` | Probe result {x,y,z,a,success} |

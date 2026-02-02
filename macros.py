@@ -703,6 +703,14 @@ class MacroEngine:
         await self._log(f'> {gcode}')
         await self.grbl.send_command(gcode)
 
+    async def _get_distance_mode(self) -> str:
+        """Query current distance mode (G90 absolute or G91 relative)."""
+        result = await self.grbl.send_command('$G')
+        # Response: [GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]
+        if 'G91' in result:
+            return 'G91'
+        return 'G90'
+
     async def _wait_idle(self, timeout: float = 30.0):
         """Wait for machine to reach Idle state after movement completes."""
         start = time.time()

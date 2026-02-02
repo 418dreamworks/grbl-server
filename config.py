@@ -44,7 +44,7 @@ SPINDLE_RPM = 12000
 
 # Warmup time after spindle start (seconds)
 # Allows user to adjust speed override before cutting begins
-SPINDLE_WARMUP = 10
+SPINDLE_WARMUP = 5
 
 # ============================================================
 # PROBING
@@ -98,3 +98,33 @@ TAILSTOCK_EDGE_OFFSET = 17.6  # 7 + 21.2/2
 
 # Alignment tolerance for tailstock square check
 ALIGNMENT_TOLERANCE = 0.05  # mm
+
+# ============================================================
+# FEED RATE LOOKUP (for drilling)
+# ============================================================
+
+# Feed rate lookup table (tool_dia_mm: feed_mm_per_min)
+# Interpolates between points, clamps at extremes
+FEED_TABLE = {
+    0.5: 100,
+    1.0: 150,
+    3.0: 200,
+    6.0: 300,
+}
+
+def feed_for_tool(tool_dia):
+    """Get feed rate for tool diameter with interpolation."""
+    points = sorted(FEED_TABLE.items())
+    # Clamp to extremes
+    if tool_dia <= points[0][0]:
+        return points[0][1]
+    if tool_dia >= points[-1][0]:
+        return points[-1][1]
+    # Interpolate
+    for i in range(len(points) - 1):
+        d1, f1 = points[i]
+        d2, f2 = points[i + 1]
+        if d1 <= tool_dia <= d2:
+            t = (tool_dia - d1) / (d2 - d1)
+            return f1 + t * (f2 - f1)
+    return points[-1][1]

@@ -1,5 +1,6 @@
 # Rotary Chuck Find
 # Runs probe_x, probe_y, probe_z, then shifts origin by chuck offsets
+# Returns to start position at end
 
 import os
 # macro_dir is provided by MacroEngine namespace
@@ -15,6 +16,12 @@ async def run_sub_macro(filename):
     await ns['_sub']()
 
 await self._log('=== CHUCK FIND ===')
+
+# Record start MPos (WPos shifts during macro, MPos is stable)
+await self._wait_idle()
+start_mpos_x = self.grbl.status.mpos['x']
+start_mpos_y = self.grbl.status.mpos['y']
+start_mpos_z = self.grbl.status.mpos['z']
 
 # Run probe_x (right edge)
 self.edge_sign = 1
@@ -46,4 +53,16 @@ await self._send_and_log(f'G10 L20 P1 Z{z + 26}')
 await self._log(f'Z offset: {z:.3f} -> {z + 26:.3f}')
 
 await self._log('Chuck centerline at (0, 0, 0)')
+
+# Return to start position using MPos delta (Z first, then XY)
+await self._wait_idle()
+delta_x = start_mpos_x - self.grbl.status.mpos['x']
+delta_y = start_mpos_y - self.grbl.status.mpos['y']
+delta_z = start_mpos_z - self.grbl.status.mpos['z']
+
+await self._send_and_log('G91')
+await self._send_and_log(f'G0 Z{delta_z:.3f}')
+await self._send_and_log(f'G0 X{delta_x:.3f} Y{delta_y:.3f}')
+await self._send_and_log('G90')
+
 await self._log('=== CHUCK FIND COMPLETE ===')
