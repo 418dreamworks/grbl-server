@@ -47,10 +47,11 @@ await self._wait_idle()
 await self._send_and_log('G90')
 await self._send_and_log(f'G10 L20 P1 Y{self.edge_sign * (7 + r)}')
 
-# 6. Return to start (relative)
+# 6. Return to start (relative) - back off first to avoid rubbing on Z raise
 await self._send_and_log('G91')
-await self._send_and_log(f'G0 Y{-total}')
+await self._send_and_log(f'G0 Y{total/5}')
 await self._send_and_log('G0 Z6')
+await self._send_and_log(f'G0 Y{-total*6/5}')
 await self._send_and_log('G90')
 
 await self._log(f'Y set to {self.edge_sign * (7 + r):.3f}mm')
