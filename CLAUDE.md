@@ -2,19 +2,21 @@
 
 ## Deployment
 
-**Target:** `linuxcnc` (NOT pi@cnc.local)
+**Local deploy** (running on same machine as controller):
 
 ```bash
-ssh linuxcnc 'pkill -f grbl_server.py; cd ~/grbl-server && git pull && nohup python3 grbl_server.py --port 8000 > server.log 2>&1 &'
+fuser -k 8000/tcp 8001/tcp 2>/dev/null; sleep 2; nohup python3 grbl_server.py --port 8000 > server.log 2>&1 &
 ```
 
-Verify: `ssh linuxcnc 'pgrep -f grbl_server'`
+**IMPORTANT:** Always use `fuser -k` to free sockets before restart. `pkill` alone leaves sockets in TIME_WAIT.
+
+Verify: `pgrep -f grbl_server && ss -tlnp | grep 8000`
 
 ## Version Number
 
 - Version is in `jog.html` (search for `v1.`)
 - **Increment version on every deploy**
-- Current: v1.128
+- Current: v1.129
 
 ## Key Architecture
 

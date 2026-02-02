@@ -180,38 +180,131 @@
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.9);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
         .modal.open { display: flex; }
         .modal-content {
-            background: #2a2a2a;
+            background: #111;
             padding: 20px;
             border-radius: 8px;
-            min-width: 300px;
+            min-width: 320px;
+            border: 2px solid #444;
         }
-        .modal h3 { margin: 0 0 15px 0; font-size: 16px; }
+        .modal h3 {
+            margin: 0 0 16px 0;
+            font-size: 16px;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            text-align: center;
+        }
         .modal-row {
             display: flex;
             align-items: center;
             margin-bottom: 10px;
             gap: 10px;
         }
-        .modal-row label { width: 30px; color: #888; }
+        .modal-row label { width: 30px; color: #aaa; font-weight: 600; }
         .modal-row input {
             flex: 1;
-            padding: 8px;
-            background: #1a1a1a;
-            border: 1px solid #444;
+            padding: 12px;
+            background: #000;
+            border: 2px solid #555;
             border-radius: 4px;
             color: #fff;
             font-family: monospace;
-            font-size: 14px;
+            font-size: 16px;
         }
-        .modal-buttons { display: flex; gap: 10px; margin-top: 15px; }
-        .modal-buttons button { flex: 1; }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 16px; }
+        .modal-buttons button { flex: 1; min-height: 50px; }
+
+        /* Tool diameter button styles - HIGH CONTRAST TOUCHSCREEN */
+        .tool-dia-btn {
+            padding: 20px !important;
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            border-radius: 6px !important;
+            border-width: 3px !important;
+            min-height: 70px !important;
+            text-transform: none !important;
+        }
+        .tool-dia-btn:active {
+            transform: scale(0.98);
+        }
+        .tool-dia-btn .size-imperial {
+            font-size: 24px;
+            font-weight: 800;
+            display: block;
+            color: #fff;
+        }
+        .tool-dia-btn .size-metric {
+            font-size: 14px;
+            color: #ccc;
+            margin-top: 4px;
+            display: block;
+            font-weight: 600;
+        }
+        .tool-dia-quarter {
+            background: #1a4a1a !important;
+            border-color: #4f4 !important;
+        }
+        .tool-dia-quarter:active {
+            background: #2a6a2a !important;
+        }
+        .tool-dia-eighth {
+            background: #1a3a4a !important;
+            border-color: #4cf !important;
+        }
+        .tool-dia-eighth:active {
+            background: #2a5a6a !important;
+        }
+
+        .custom-tool-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 10px;
+            background: #000;
+            border-radius: 6px;
+            border: 2px solid #333;
+        }
+        .custom-tool-row input {
+            flex: 1;
+            padding: 14px;
+            font-size: 18px;
+            background: #111;
+            border: 2px solid #555;
+            color: #fff;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .custom-tool-row input:focus {
+            outline: none;
+            border-color: #4f4;
+        }
+        .custom-tool-row select {
+            padding: 14px 10px;
+            font-size: 16px;
+            background: #111;
+            border: 2px solid #555;
+            color: #fff;
+            border-radius: 4px;
+        }
+        .custom-tool-row button {
+            padding: 14px 20px !important;
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            background: #333 !important;
+            border: 2px solid #666 !important;
+            min-height: 50px !important;
+        }
+        .custom-tool-row button:active {
+            background: #555 !important;
+        }
         .pos .label.clickable { cursor: pointer; text-decoration: underline; }
         .pos .label.clickable:hover { color: #aaa; }
         .unit { color: #888; margin-left: 10px; }
@@ -299,7 +392,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.128</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.130</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -632,27 +725,28 @@
 
     <!-- Probe Tool Diameter Modal (Step 1) -->
     <div class="modal" id="probeModal" onclick="if(event.target===this)closeProbeModal()">
-        <div class="modal-content" style="min-width: 280px;">
-            <h3>Select Tool Diameter</h3>
-            <div style="display: flex; flex-direction: column; gap: 12px; margin: 15px 0;">
-                <button onclick="selectProbeToolDia(6.35)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
-                    1/4" (6.35mm)
+        <div class="modal-content" style="min-width: 300px;">
+            <h3>Tool Diameter</h3>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+                <button class="tool-dia-btn tool-dia-quarter" onclick="selectProbeToolDia(6.35)">
+                    <span class="size-imperial">¼″</span>
+                    <span class="size-metric">6.35 mm</span>
                 </button>
-                <button onclick="selectProbeToolDia(3.175)" style="padding: 15px; font-size: 16px; background: #2a4a4a; border-color: #3a6a6a;">
-                    1/8" (3.175mm)
+                <button class="tool-dia-btn tool-dia-eighth" onclick="selectProbeToolDia(3.175)">
+                    <span class="size-imperial">⅛″</span>
+                    <span class="size-metric">3.175 mm</span>
                 </button>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="number" id="customToolDia" step="0.001" placeholder="Custom"
-                           style="flex: 1; padding: 12px; font-size: 16px; background: #222; border: 1px solid #555; color: #fff; border-radius: 4px;">
-                    <select id="customToolDiaUnit" style="padding: 12px; font-size: 16px; background: #222; border: 1px solid #555; color: #fff; border-radius: 4px;">
-                        <option value="mm">mm</option>
-                        <option value="in">in</option>
-                    </select>
-                    <button onclick="selectCustomToolDia()" style="padding: 12px 16px; font-size: 16px;">OK</button>
-                </div>
+            </div>
+            <div class="custom-tool-row">
+                <input type="number" id="customToolDia" step="0.001" placeholder="Custom">
+                <select id="customToolDiaUnit">
+                    <option value="mm">mm</option>
+                    <option value="in">in</option>
+                </select>
+                <button onclick="selectCustomToolDia()">OK</button>
             </div>
             <div class="modal-buttons">
-                <button onclick="closeProbeModal()">Cancel</button>
+                <button onclick="closeProbeModal()" style="background: #2a2a2a; border-color: #444;">Cancel</button>
             </div>
         </div>
     </div>
@@ -845,6 +939,11 @@
                 document.getElementById('machY').textContent = (machPosY * factor).toFixed(decimals);
                 document.getElementById('machZ').textContent = (machPosZ * factor).toFixed(decimals);
                 document.getElementById('machA').textContent = machPosA.toFixed(3);
+
+                // Update fixtures view if active (for live tool position)
+                if (typeof currentView !== 'undefined' && currentView === 'fixtures') {
+                    renderFixturesView();
+                }
 
                 lastMachineState = currentState;
             }
