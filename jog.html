@@ -1240,7 +1240,7 @@
             input.value = '';
             input.style.color = '#fff';  // Reset color
             debugLog('=== MACRO COMPLETE: ' + msg.name + ' ===', 'info');
-            if (msg.name === 'set_z') setZDone = true;
+            if (msg.name === 'set_z' || msg.name === 'tool_measure') setZDone = true;
             updateButtonStates();
         }
 
@@ -2064,20 +2064,20 @@
                 document.getElementById('probeEdgeTitle').textContent = 'X Probe - Select Edge';
                 edgeDiv.innerHTML = `
                     <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">
-                        ← LEFT EDGE
+                        LEFT EDGE
                     </button>
                     <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
-                        RIGHT EDGE →
+                        RIGHT EDGE
                     </button>
                 `;
             } else if (pendingProbe === 'probe_y') {
                 document.getElementById('probeEdgeTitle').textContent = 'Y Probe - Select Edge';
                 edgeDiv.innerHTML = `
                     <button onclick="runProbeWithEdge(-1)" style="padding: 15px; font-size: 16px; background: #4a2a2a; border-color: #6a3a3a;">
-                        ↓ FRONT EDGE
+                        FRONT EDGE
                     </button>
                     <button onclick="runProbeWithEdge(1)" style="padding: 15px; font-size: 16px; background: #2a4a2a; border-color: #3a6a3a;">
-                        BACK EDGE ↑
+                        BACK EDGE
                     </button>
                 `;
             }
