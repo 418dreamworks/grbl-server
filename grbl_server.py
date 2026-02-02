@@ -51,11 +51,10 @@ LOG_DIR = 'logs'
 LOG_MAX_AGE_DAYS = 7
 
 # Start position enforcement (machine coordinates)
-# Tool must be near home corner before starting a job
-START_POS_TOLERANCE = 3.0  # mm tolerance for position check
-START_POS_X = -1.0  # Expected MPos X (near home)
-START_POS_Y = -1.0  # Expected MPos Y (near home)
-START_POS_Z = -1.0  # Expected MPos Z (near top)
+# Tool must be at bottom-right corner (rapid button ↘) before starting
+# Bottom-right = MPos X near 0, MPos Y at far end, Z near top
+START_POS_TOLERANCE = 5.0  # mm tolerance for position check
+START_POS_MARGIN = 2.0     # matches MARGIN in jog.html
 
 # SMS Notification via email-to-SMS gateway
 SMS_ENABLED = True
@@ -524,17 +523,29 @@ class FileStreamer:
             print('[Streamer] No file loaded')
             return False, 'No file loaded'
 
-        # Check start position (machine must be near home corner)
+        # Check start position (machine must be at bottom-right corner - rapid ↘ button)
         if not skip_position_check and from_line == 0:
             mpos = self.grbl.status.mpos
-            dx = abs(mpos['x'] - START_POS_X)
-            dy = abs(mpos['y'] - START_POS_Y)
-            dz = abs(mpos['z'] - START_POS_Z)
+
+            # Get work area size from GRBL settings
+            work_max_y = float(self.grbl.settings.get('$131', 400))
+
+            # Expected position: bottom-right corner
+            # MPos X = -MARGIN (near home X)
+            # MPos Y = -(workMaxY - MARGIN) (far end of Y)
+            # MPos Z = near 0 (top)
+            expected_x = -START_POS_MARGIN
+            expected_y = -(work_max_y - START_POS_MARGIN)
+            expected_z = -START_POS_MARGIN
+
+            dx = abs(mpos['x'] - expected_x)
+            dy = abs(mpos['y'] - expected_y)
+            dz = abs(mpos['z'] - expected_z)
 
             if dx > START_POS_TOLERANCE or dy > START_POS_TOLERANCE or dz > START_POS_TOLERANCE:
-                msg = f'Start position check failed. Expected MPos near ({START_POS_X}, {START_POS_Y}, {START_POS_Z}), ' \
-                      f'got ({mpos["x"]:.1f}, {mpos["y"]:.1f}, {mpos["z"]:.1f}). ' \
-                      f'Move to home corner first (jog to X-1 Y-1 Z-1 in machine coords).'
+                msg = f'Start position check failed. Click ↘ rapid button first. ' \
+                      f'Expected MPos near ({expected_x:.0f}, {expected_y:.0f}, {expected_z:.0f}), ' \
+                      f'got ({mpos["x"]:.1f}, {mpos["y"]:.1f}, {mpos["z"]:.1f}).'
                 print(f'[Streamer] {msg}')
                 if self.broadcast_callback:
                     await self.broadcast_callback({
@@ -618,14 +629,22 @@ class FileStreamer:
 
             # Stop spindle first
             await self.grbl.send_command('M5')
-            # Use machine coordinates for return-to-home
-            await self.grbl.send_command('G53 G0 Z-1')  # Z near top first
+
+            # Return to bottom-right corner (same as start position)
+            work_max_y = float(self.grbl.settings.get('$131', 400))
+            home_x = -START_POS_MARGIN
+            home_y = -(work_max_y - START_POS_MARGIN)
+            home_z = -START_POS_MARGIN
+
+            # Z near top first
+            await self.grbl.send_command(f'G53 G0 Z{home_z}')
             # Wait for Z move to complete
             while True:
                 await asyncio.sleep(0.2)
                 if self.grbl.status.state == 'Idle':
                     break
-            await self.grbl.send_command('G53 G0 X-1 Y-1')  # Then XY to home corner
+            # Then XY to bottom-right corner
+            await self.grbl.send_command(f'G53 G0 X{home_x} Y{home_y}')
             # Wait for XY move
             while True:
                 await asyncio.sleep(0.2)
