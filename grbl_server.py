@@ -958,7 +958,7 @@ class GrblServer:
                         'label': display_label,
                         'category': parts[0].capitalize() if len(parts) == 2 else 'Other'
                     })
-            await websocket.send(json.dumps({'type': 'macro_list', 'macros': macros}))
+            await ws.send(json.dumps({'type': 'macro_list', 'macros': macros}))
 
         elif msg_type == 'macro_load':
             name = msg.get('name', '')
@@ -969,9 +969,9 @@ class GrblServer:
                 macro_path = Path(__file__).parent / 'macros' / f'{name}.py'
             if macro_path.exists():
                 code = macro_path.read_text()
-                await websocket.send(json.dumps({'type': 'macro_content', 'name': name, 'code': code}))
+                await ws.send(json.dumps({'type': 'macro_content', 'name': name, 'code': code}))
             else:
-                await websocket.send(json.dumps({'type': 'macro_content', 'name': name, 'code': '', 'error': 'File not found'}))
+                await ws.send(json.dumps({'type': 'macro_content', 'name': name, 'code': '', 'error': 'File not found'}))
 
         elif msg_type == 'macro_save':
             name = msg.get('name', '')
