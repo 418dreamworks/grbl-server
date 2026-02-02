@@ -8,7 +8,7 @@ import asyncio
 peck = self.tool_diameter / 2
 
 # Get current Z position as start position (surface)
-start_z = self.grbl.status['wpos']['z']
+start_z = self.grbl.status.wpos['z']
 
 await self._log(f'=== DRILL START: depth={self.depth}mm, peck={peck:.2f}mm ===')
 

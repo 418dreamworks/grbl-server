@@ -106,7 +106,7 @@ def segment_outside_hull(seg, h):
            is_outside_hull(seg['to'][0], seg['to'][1], h)
 
 # Check fixtures for collisions
-wco = self.grbl.status.get('wco', {'x': 0, 'y': 0, 'z': 0})
+wco = self.grbl.status.wco
 collisions = []
 
 def check_fixture_collision(x, y, z):
@@ -159,7 +159,7 @@ await self._log('')
 await self._log('Trace cut hull boundary? (at current Z)')
 await self._wait_for_continue()
 
-current_z = self.grbl.status['wpos']['z']
+current_z = self.grbl.status.wpos['z']
 await self._log(f'Tracing at Z={current_z:.3f}mm')
 
 await self._send_and_log('G90')

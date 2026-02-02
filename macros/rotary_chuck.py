@@ -127,7 +127,7 @@ await self._log(f'Z set to {CHUCK_Z_OFFSET}mm')
 await self._log('--- Moving to centerline ---')
 
 # Retract to mpos Z=-1 (safe height above work)
-mpos_z = self.grbl.status['mpos']['z']
+mpos_z = self.grbl.status.mpos['z']
 target_mpos_z = -1
 retract = target_mpos_z - mpos_z
 await self._send_and_log('G91')

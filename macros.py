@@ -725,6 +725,25 @@ class MacroEngine:
             await asyncio.sleep(0.1)
         raise Exception(f'Timeout waiting for Idle (stuck in {self.grbl.status.state})')
 
+    async def _wait_for_continue(self):
+        """Wait for user to click Continue button."""
+        if self.cancel_flag:
+            raise Exception('Macro cancelled')
+        # Clear event before waiting
+        self.continue_event.clear()
+        # Notify client that we're waiting
+        if self.broadcast_callback:
+            await self.broadcast_callback({
+                'type': 'macro_status',
+                'name': self.current_macro,
+                'step': self.current_step,
+                'waiting': True,
+            })
+        # Wait for continue or cancel
+        await self.continue_event.wait()
+        if self.cancel_flag:
+            raise Exception('Macro cancelled')
+
     async def _report_step(self, name: str, cmd: str, waiting: bool = False):
         """Report macro step to clients."""
         if self.broadcast_callback:

@@ -55,7 +55,7 @@ await self._send_and_log('G38.3 Y-2 F10')
 await self._wait_idle()
 
 # Read probed Y position (work coordinates)
-probed_y = self.grbl.status['wpos']['y']
+probed_y = self.grbl.status.wpos['y']
 # Expected Y: -(r + edge_offset) when tailstock centerline is at Y=0 (aligned with chuck)
 expected_y = -(r + TAILSTOCK_EDGE_OFFSET)
 y_deviation = probed_y - expected_y

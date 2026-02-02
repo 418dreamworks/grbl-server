@@ -16,8 +16,8 @@ await self._log('=== PROBE FIXTURE ===')
 await self._send_and_log('$21=0')
 await asyncio.sleep(0.1)
 
-start_x = self.grbl.status['wpos']['x']
-start_y = self.grbl.status['wpos']['y']
+start_x = self.grbl.status.wpos['x']
+start_y = self.grbl.status.wpos['y']
 
 # Probe directions: 0°, 120°, 240°
 angles = [0, 120, 240]
@@ -38,10 +38,10 @@ async def probe_direction(angle_deg):
     # Poll for alarm state
     while True:
         await asyncio.sleep(0.05)
-        state = self.grbl.status.get('state', '')
+        state = self.grbl.status.state
         if 'Alarm' in state:
-            px = self.grbl.status['wpos']['x']
-            py = self.grbl.status['wpos']['y']
+            px = self.grbl.status.wpos['x']
+            py = self.grbl.status.wpos['y']
             await self._send_and_log('$X')  # Clear alarm
             await asyncio.sleep(0.1)
             # Back off
@@ -121,7 +121,7 @@ if not self.grbl.last_probe['success']:
     await self._send_and_log('G90')
     return
 
-z_top = self.grbl.status['wpos']['z']
+z_top = self.grbl.status.wpos['z']
 
 # Move to center at fixture top, set G59 zero there
 # Currently at edge, at z_top. Move to center first (stay at surface level)
@@ -143,7 +143,7 @@ await self._log('Switch to G59 for fixture-relative coords')
 
 # Store fixture in MACHINE coordinates (MPos = WPos + WCO)
 # Cylinder from mz (top) down to -infinity
-wco = self.grbl.status.get('wco', {'x': 0, 'y': 0, 'z': 0})
+wco = self.grbl.status.wco
 fixture = {
     'mx': round(x_center + wco['x'], 3),  # machine X
     'my': round(y_center + wco['y'], 3),  # machine Y

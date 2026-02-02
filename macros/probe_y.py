@@ -25,7 +25,7 @@ if self.grbl.last_probe['success']:
     return
 
 # 3. First probe (fast) - track displacement
-pre_y = self.grbl.status['wpos']['y']
+pre_y = self.grbl.status.wpos['y']
 await self._send_and_log(f'G38.3 Y{-self.edge_sign * 6} F50')
 await self._wait_idle()
 
@@ -36,7 +36,7 @@ if not self.grbl.last_probe['success']:
     await self._log('ERROR: No probe contact')
     return
 
-total += (self.grbl.status['wpos']['y'] - pre_y)
+total += (self.grbl.status.wpos['y'] - pre_y)
 
 # 4. Back off and refine
 await self._send_and_log(f'G0 Y{self.edge_sign * 1}')

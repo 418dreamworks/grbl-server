@@ -20,8 +20,8 @@ if not self.fixtures:
 await self._send_and_log('$21=0')
 await asyncio.sleep(0.1)
 
-start_x = self.grbl.status['wpos']['x']
-start_y = self.grbl.status['wpos']['y']
+start_x = self.grbl.status.wpos['x']
+start_y = self.grbl.status.wpos['y']
 
 # Probe directions: 0°, 120°, 240°
 angles = [0, 120, 240]
@@ -40,10 +40,10 @@ async def probe_direction(angle_deg):
 
     while True:
         await asyncio.sleep(0.05)
-        state = self.grbl.status.get('state', '')
+        state = self.grbl.status.state
         if 'Alarm' in state:
-            px = self.grbl.status['wpos']['x']
-            py = self.grbl.status['wpos']['y']
+            px = self.grbl.status.wpos['x']
+            py = self.grbl.status.wpos['y']
             await self._send_and_log('$X')
             await asyncio.sleep(0.1)
             await self._send_and_log(f'G0 X{-dx * BACKOFF:.3f} Y{-dy * BACKOFF:.3f}')
@@ -87,7 +87,7 @@ y_center = -C / (2 * A)
 await self._send_and_log('$21=1')
 
 # Convert to machine coords
-wco = self.grbl.status.get('wco', {'x': 0, 'y': 0, 'z': 0})
+wco = self.grbl.status.wco
 mx_probed = x_center + wco['x']
 my_probed = y_center + wco['y']
 

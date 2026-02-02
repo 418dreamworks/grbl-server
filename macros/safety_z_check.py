@@ -35,7 +35,7 @@ if not z_values:
 
 z_min = min(z_values)
 z_max = max(z_values)
-start_z = self.grbl.status['wpos']['z']
+start_z = self.grbl.status.wpos['z']
 
 await self._log(f'G-code Z range: [{z_min:.3f}, {z_max:.3f}]')
 await self._log(f'Max depth: {z_min:.3f}mm')
