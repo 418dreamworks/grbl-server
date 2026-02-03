@@ -158,6 +158,7 @@ elif self.fixtures:
 await self._log('')
 await self._log('Trace cut hull boundary? (at current Z)')
 await self._wait_for_continue()
+await self._wait_idle()
 
 current_z = self.grbl.status.wpos['z']
 await self._log(f'Tracing at Z={current_z:.3f}mm')

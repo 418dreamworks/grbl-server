@@ -20,12 +20,14 @@ await self._log('=== TAILSTOCK SQUARE CHECK ===')
 await self._log('NOTE: Run Chuck Find first to establish centerline reference')
 
 # Record Y position (chuck coordinate system, Y=0 is chuck centerline)
+await self._wait_idle()
 recorded_y = self.grbl.status.wpos['y']
 await self._log(f'Current Y (chuck coords): {recorded_y:.3f}mm')
 
 # Run probe_y (front edge toward chuck)
 self.edge_sign = -1
 await run_sub_macro('probe_y.py')
+await self._wait_idle()
 
 # Get Y after probe_y (probe coordinate system)
 current_y = self.grbl.status.wpos['y']

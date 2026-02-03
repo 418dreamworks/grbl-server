@@ -18,7 +18,7 @@ if not self.fixtures:
 
 # Disable hard limits for probing
 await self._send_and_log('$21=0')
-await asyncio.sleep(0.1)
+await self._wait_idle()
 
 start_x = self.grbl.status.wpos['x']
 start_y = self.grbl.status.wpos['y']
