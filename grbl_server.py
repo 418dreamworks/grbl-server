@@ -165,6 +165,7 @@ class MachineStatus:
     spindle_override: int = 100
     feed_rate: float = 0
     spindle_speed: float = 0
+    pins: str = ''
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -176,6 +177,7 @@ class MachineStatus:
             'spindle_override': self.spindle_override,
             'feed_rate': self.feed_rate,
             'spindle_speed': self.spindle_speed,
+            'pins': self.pins,
         }
 
 # ============================================================
@@ -409,6 +411,10 @@ class GrblConnection:
                     self.status.spindle_speed = float(fs[1]) if len(fs) > 1 else 0
                 else:
                     self.status.feed_rate = float(part[2:])
+
+            elif part.startswith('Pn:'):
+                # Input pins: X=limit, Y=limit, Z=limit, P=probe, etc.
+                self.status.pins = part[3:]
 
     def _parse_probe(self, line: str):
         """Parse probe result."""

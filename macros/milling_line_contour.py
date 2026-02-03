@@ -7,7 +7,8 @@
 import asyncio
 import math
 import sys
-sys.path.insert(0, str(__file__).rsplit('/', 2)[0]) if '/' in str(__file__) else None
+import os
+sys.path.insert(0, os.path.dirname(macro_dir))
 from config import DOC_RATIO, PITCH_RATIO, STEPOVER_RATIO, FEED_CUT, SPINDLE_RPM, SPINDLE_WARMUP
 
 doc = self.tool_diameter * DOC_RATIO

@@ -299,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.125</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.126</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -546,8 +546,8 @@
                 <div class="row"><span class="label">Spindle:</span><span class="value" id="spSpindle">-- RPM</span></div>
             </div>
             <div class="section">
-                <h4>Last Raw Status</h4>
-                <div id="spRaw" style="font-size:10px; color:#666; word-break:break-all;">--</div>
+                <h4>Input Pins</h4>
+                <div id="spPins" style="font-size:11px; color:#888;">--</div>
             </div>
         </div>
     </div>
@@ -755,14 +755,8 @@
             switch (msg.type) {
                 case 'status':       handleStatus(msg); break;
                 case 'serial_read':
-                    // Only log status lines with Ov: (override info)
-                    if (msg.line.startsWith('<')) {
-                        document.getElementById('spRaw').textContent = msg.line;
-                        if (msg.line.includes('Ov:')) {
-                            debugLog('< ' + msg.line);
-                        }
-                    } else {
-                        // Non-status lines always show
+                    // Don't log raw status lines - parsed values are shown in UI
+                    if (!msg.line.startsWith('<')) {
                         debugLog('< ' + msg.line);
                     }
                     break;
@@ -916,6 +910,9 @@
             }
             if (msg.spindle_speed !== undefined) {
                 document.getElementById('spSpindle').textContent = msg.spindle_speed + ' RPM';
+            }
+            if (msg.pins !== undefined) {
+                document.getElementById('spPins').textContent = msg.pins || '--';
             }
 
             updateButtonStates();
