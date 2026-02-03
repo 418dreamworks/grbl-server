@@ -12,13 +12,31 @@ from config import DOC_RATIO, STEPOVER_RATIO, FEED_CUT, SPINDLE_RPM, SPINDLE_WAR
 
 doc = self.tool_diameter * DOC_RATIO
 stepover = self.tool_diameter * STEPOVER_RATIO
+r = self.tool_diameter / 2
 
-await self._log(f'=== FACING START: {self.length}x{self.width}mm, depth={self.depth}mm ===')
-await self._log(f'Tool: {self.tool_diameter}mm, DOC: {doc:.2f}mm, Stepover: {stepover:.2f}mm')
+# Tool path dimensions (offset by tool radius on each side)
+path_x = self.length - self.tool_diameter
+path_y = self.width - self.tool_diameter
+
+if path_x <= 0 or path_y <= 0:
+    await self._log(f'ERROR: Pocket too small for tool. Min size: {self.tool_diameter:.1f}x{self.tool_diameter:.1f}mm')
+    return
+
+await self._log(f'=== FACING START: {self.length}x{self.width}mm pocket, depth={self.depth}mm ===')
+await self._log(f'Tool: {self.tool_diameter}mm, Path: {path_x:.1f}x{path_y:.1f}mm')
+
+# Record start position for return
+await self._wait_idle()
+start_x = self.grbl.status.wpos['x']
+start_y = self.grbl.status.wpos['y']
+start_z = self.grbl.status.wpos['z']
 
 await self._send_and_log('G91')
 await self._send_and_log(f'M3 S{SPINDLE_RPM}')
 await asyncio.sleep(SPINDLE_WARMUP)
+
+# Move to start corner (offset by radius so tool edge is at 0,0)
+await self._send_and_log(f'G0 X{r:.3f} Y{r:.3f}')
 
 current_depth = 0
 
@@ -27,47 +45,48 @@ while current_depth < self.depth:
     ramp_per_pass = level_depth / 2
 
     # === Ramp entry (3 passes) ===
-    # Pass 1: 0→length, descend half
-    await self._send_and_log(f'G1 X{self.length} Z{-ramp_per_pass} F{FEED_CUT}')
+    # Pass 1: 0→path_x, descend half
+    await self._send_and_log(f'G1 X{path_x:.3f} Z{-ramp_per_pass:.3f} F{FEED_CUT}')
 
-    # Pass 2: length→0, descend half
-    await self._send_and_log(f'G1 X{-self.length} Z{-ramp_per_pass} F{FEED_CUT}')
+    # Pass 2: path_x→0, descend half
+    await self._send_and_log(f'G1 X{-path_x:.3f} Z{-ramp_per_pass:.3f} F{FEED_CUT}')
 
-    # Pass 3: 0→length, flat (cleanup)
-    await self._send_and_log(f'G1 X{self.length} F{FEED_CUT}')
+    # Pass 3: 0→path_x, flat (cleanup)
+    await self._send_and_log(f'G1 X{path_x:.3f} F{FEED_CUT}')
     await self._wait_idle()
 
-    # Now at (length, 0) at new depth
+    # Now at (path_x, 0) at new depth
 
     # === Zigzag ===
     y_pos = 0
     at_right = True
 
-    while y_pos < self.width:
+    while y_pos < path_y:
         # Step in Y
-        step = min(stepover, self.width - y_pos)
-        await self._send_and_log(f'G1 Y{step} F{FEED_CUT}')
+        step = min(stepover, path_y - y_pos)
+        await self._send_and_log(f'G1 Y{step:.3f} F{FEED_CUT}')
         y_pos += step
 
         # Cut in X
         if at_right:
-            await self._send_and_log(f'G1 X{-self.length} F{FEED_CUT}')
+            await self._send_and_log(f'G1 X{-path_x:.3f} F{FEED_CUT}')
             at_right = False
         else:
-            await self._send_and_log(f'G1 X{self.length} F{FEED_CUT}')
+            await self._send_and_log(f'G1 X{path_x:.3f} F{FEED_CUT}')
             at_right = True
         await self._wait_idle()
 
     current_depth += level_depth
     await self._log(f'Level {current_depth:.2f}mm complete')
 
-    # Return to (0, 0) for next depth level
+    # Return to start corner for next depth level
     if at_right:
-        await self._send_and_log(f'G0 X{-self.length}')
-    await self._send_and_log(f'G0 Y{-self.width}')
+        await self._send_and_log(f'G0 X{-path_x:.3f}')
+    await self._send_and_log(f'G0 Y{-path_y:.3f}')
 
-# Retract and end
-await self._send_and_log(f'G0 Z{self.depth + 2}')
+# Return to start position: Z first, then XY
 await self._send_and_log('M5')
 await self._send_and_log('G90')
+await self._send_and_log(f'G0 Z{start_z:.3f}')
+await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
 await self._log('=== FACING COMPLETE ===')

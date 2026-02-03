@@ -299,7 +299,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.126</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.127</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -456,7 +456,7 @@
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
                         <button style="min-height:49px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="showToolDiaModal('milling_boring')">Boring</button>
                         <button style="min-height:49px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_facing')">Facing</button>
-                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_drill')">Drill</button>
+                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="runDrillMacro()">Drill</button>
                         <button style="min-height:49px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="showToolDiaModal('milling_line_contour')">Line</button>
                         <button style="min-height:49px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="showToolDiaModal('milling_od_contour')">OD</button>
                     </div>
@@ -2034,6 +2034,17 @@
             wsSend({ type: 'macro_run', name: name });
         }
 
+        // ========== DRILL MACRO (free-form input) ==========
+        function runDrillMacro() {
+            if (!connected) return;
+            const toolDia = prompt('Tool diameter (mm)?', '6.35');
+            if (!toolDia) return;
+            const depth = prompt('Drill depth (mm)?', '10');
+            if (!depth) return;
+            debugLog('=== MACRO: milling_drill (tool=' + toolDia + 'mm) ===', 'info');
+            wsSend({ type: 'macro_run', name: 'milling_drill', tool_diameter: parseFloat(toolDia), depth: parseFloat(depth) });
+        }
+
         // ========== TOOL DIAMETER MODAL ==========
         let pendingMacro = '';
         let pendingToolDia = 0;
@@ -2106,11 +2117,6 @@
                 if (!depth) { pendingMacro = ''; return; }
                 debugLog('=== MACRO: milling_facing (tool=' + toolDiameter + 'mm) ===', 'info');
                 wsSend({ type: 'macro_run', name: 'milling_facing', tool_diameter: toolDiameter, length: parseFloat(length), width: parseFloat(width), depth: parseFloat(depth) });
-            } else if (pendingMacro === 'milling_drill') {
-                const depth = prompt('Drill depth (mm)?', '10');
-                if (!depth) { pendingMacro = ''; return; }
-                debugLog('=== MACRO: milling_drill (tool=' + toolDiameter + 'mm) ===', 'info');
-                wsSend({ type: 'macro_run', name: 'milling_drill', tool_diameter: toolDiameter, depth: parseFloat(depth) });
             } else if (pendingMacro === 'milling_line_contour') {
                 const endX = prompt('End X (mm, relative)?', '50');
                 if (!endX) { pendingMacro = ''; return; }

@@ -29,11 +29,11 @@ while current_depth < self.depth:
 
     # Rapid to clearance (0.5mm above previous cut depth)
     clearance_z = start_z - current_depth + 0.5
-    await self._send_and_log(f'G0 Z{clearance_z}')
+    await self._send_and_log(f'G0 Z{clearance_z:.3f}')
 
     # Feed to new depth
     target_z = start_z - next_depth
-    await self._send_and_log(f'G1 Z{target_z} F300')
+    await self._send_and_log(f'G1 Z{target_z:.3f} F300')
     await self._wait_idle()
 
     current_depth = next_depth
@@ -41,7 +41,7 @@ while current_depth < self.depth:
     # Retract pattern
     if peck_count % 3 == 0:
         # Full retract every 3 pecks (chip clearing)
-        await self._send_and_log(f'G0 Z{start_z + 2}')
+        await self._send_and_log(f'G0 Z{start_z:.3f}')
         await self._log(f'Full retract at peck {peck_count}')
     else:
         # Slight back-off (2mm)
@@ -49,8 +49,8 @@ while current_depth < self.depth:
         await self._send_and_log('G0 Z2')
         await self._send_and_log('G90')
 
-# Final retract
-await self._send_and_log(f'G0 Z{start_z + 2}')
+# Final retract to start height
+await self._send_and_log(f'G0 Z{start_z:.3f}')
 
 await self._send_and_log('M5')
 await self._log('=== DRILL COMPLETE ===')

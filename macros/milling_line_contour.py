@@ -25,6 +25,12 @@ if self.width == 0:
 else:
     await self._log(f'=== LINE CONTOUR START: ({self.end_x},{self.end_y}), width={self.width}mm, depth={self.depth}mm ===')
 
+# Record start position for return
+await self._wait_idle()
+start_x = self.grbl.status.wpos['x']
+start_y = self.grbl.status.wpos['y']
+start_z = self.grbl.status.wpos['z']
+
 await self._send_and_log('G91')
 await self._send_and_log(f'M3 S{SPINDLE_RPM}')
 await asyncio.sleep(SPINDLE_WARMUP)
@@ -38,10 +44,10 @@ if self.width == 0:
         descend = min(ramp_increment, self.depth - current_depth)
 
         if at_end:
-            await self._send_and_log(f'G1 X{-self.end_x} Y{-self.end_y} Z{-descend} F{FEED_CUT}')
+            await self._send_and_log(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} Z{-descend:.3f} F{FEED_CUT}')
             at_end = False
         else:
-            await self._send_and_log(f'G1 X{self.end_x} Y{self.end_y} Z{-descend} F{FEED_CUT}')
+            await self._send_and_log(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} Z{-descend:.3f} F{FEED_CUT}')
             at_end = True
         await self._wait_idle()
 
@@ -49,14 +55,14 @@ if self.width == 0:
 
     # Cleanup pass at full depth
     if at_end:
-        await self._send_and_log(f'G1 X{-self.end_x} Y{-self.end_y} F{FEED_CUT}')
+        await self._send_and_log(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} F{FEED_CUT}')
     else:
-        await self._send_and_log(f'G1 X{self.end_x} Y{self.end_y} F{FEED_CUT}')
+        await self._send_and_log(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} F{FEED_CUT}')
         at_end = True
 
     # Return to start
     if at_end:
-        await self._send_and_log(f'G0 X{-self.end_x} Y{-self.end_y}')
+        await self._send_and_log(f'G0 X{-self.end_x:.3f} Y{-self.end_y:.3f}')
 
 else:
     # ZIGZAG FACING MODE: ramp entry then zigzag at each depth level
@@ -68,9 +74,9 @@ else:
         at_end = False
 
         # Ramp entry (3 passes)
-        await self._send_and_log(f'G1 X{self.end_x} Y{self.end_y} Z{-ramp_per_pass} F{FEED_CUT}')
-        await self._send_and_log(f'G1 X{-self.end_x} Y{-self.end_y} Z{-ramp_per_pass} F{FEED_CUT}')
-        await self._send_and_log(f'G1 X{self.end_x} Y{self.end_y} F{FEED_CUT}')
+        await self._send_and_log(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} Z{-ramp_per_pass:.3f} F{FEED_CUT}')
+        await self._send_and_log(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} Z{-ramp_per_pass:.3f} F{FEED_CUT}')
+        await self._send_and_log(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} F{FEED_CUT}')
         at_end = True
         await self._wait_idle()
 
@@ -82,14 +88,14 @@ else:
             step = min(stepover, self.width - covered)
             px = perp_unit_x * step
             py = perp_unit_y * step
-            await self._send_and_log(f'G1 X{px} Y{py} F{FEED_CUT}')
+            await self._send_and_log(f'G1 X{px:.3f} Y{py:.3f} F{FEED_CUT}')
             covered += step
 
             if at_end:
-                await self._send_and_log(f'G1 X{-self.end_x} Y{-self.end_y} F{FEED_CUT}')
+                await self._send_and_log(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} F{FEED_CUT}')
                 at_end = False
             else:
-                await self._send_and_log(f'G1 X{self.end_x} Y{self.end_y} F{FEED_CUT}')
+                await self._send_and_log(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} F{FEED_CUT}')
                 at_end = True
             await self._wait_idle()
 
@@ -99,12 +105,13 @@ else:
         return_px = -perp_unit_x * self.width
         return_py = -perp_unit_y * self.width
         if at_end:
-            await self._send_and_log(f'G0 X{-self.end_x + return_px} Y{-self.end_y + return_py}')
+            await self._send_and_log(f'G0 X{-self.end_x + return_px:.3f} Y{-self.end_y + return_py:.3f}')
         else:
-            await self._send_and_log(f'G0 X{return_px} Y{return_py}')
+            await self._send_and_log(f'G0 X{return_px:.3f} Y{return_py:.3f}')
 
-# Retract
-await self._send_and_log(f'G0 Z{self.depth + 2}')
+# Return to start position: Z first, then XY
 await self._send_and_log('M5')
 await self._send_and_log('G90')
+await self._send_and_log(f'G0 Z{start_z:.3f}')
+await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
 await self._log('=== LINE CONTOUR COMPLETE ===')

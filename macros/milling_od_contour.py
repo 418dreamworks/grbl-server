@@ -35,19 +35,25 @@ else:
 plunge_mode = 'RAPID' if rapid_plunge else 'NORMAL'
 await self._log(f'=== OD CONTOUR START: {self.start_dia}mm → {self.end_dia}mm ({mode}), depth={self.depth}mm, plunge={plunge_mode} ===')
 
+# Record start position for return
+await self._wait_idle()
+start_x = self.grbl.status.wpos['x']
+start_y = self.grbl.status.wpos['y']
+start_z = self.grbl.status.wpos['z']
+
 await self._send_and_log('G91')
 await self._send_and_log(f'M3 S{SPINDLE_RPM}')
 await asyncio.sleep(SPINDLE_WARMUP)
 
 if rapid_plunge:
     # RAPID PLUNGE MODE: Single helix to full depth, then one spiral pass
-    await self._send_and_log(f'G0 X{start_radius}')
+    await self._send_and_log(f'G0 X{start_radius:.3f}')
 
     # Helical plunge to full depth
     plunge_remaining = self.depth
     while plunge_remaining > 0:
         descend = min(pitch, plunge_remaining)
-        await self._send_and_log(f'G3 I{-start_radius} J0 Z{-descend} F{FEED_PLUNGE}')
+        await self._send_and_log(f'G3 I{-start_radius:.3f} J0 Z{-descend:.3f} F{FEED_PLUNGE}')
         plunge_remaining -= descend
     await self._wait_idle()
 
@@ -58,20 +64,20 @@ if rapid_plunge:
 
         while (step_sign > 0 and current_radius < target) or \
               (step_sign < 0 and current_radius > target):
-            await self._send_and_log(f'G3 I{-current_radius} J0 F{FEED_CUT}')
+            await self._send_and_log(f'G3 I{-current_radius:.3f} J0 F{FEED_CUT}')
             remaining = abs(target - current_radius)
             step = min(stepover, remaining)
-            await self._send_and_log(f'G1 X{step_sign * step} F{FEED_CUT}')
+            await self._send_and_log(f'G1 X{step_sign * step:.3f} F{FEED_CUT}')
             current_radius += step_sign * step
             await self._wait_idle()
 
-        await self._send_and_log(f'G3 I{-current_radius} J0 F{FEED_CUT}')
+        await self._send_and_log(f'G3 I{-current_radius:.3f} J0 F{FEED_CUT}')
     else:
         current_radius = start_radius
-        await self._send_and_log(f'G3 I{-current_radius} J0 F{FEED_CUT}')
+        await self._send_and_log(f'G3 I{-current_radius:.3f} J0 F{FEED_CUT}')
 
     await self._log(f'Rapid plunge complete at {self.depth:.2f}mm')
-    await self._send_and_log(f'G0 X{-current_radius}')
+    await self._send_and_log(f'G0 X{-current_radius:.3f}')
 
 else:
     # NORMAL MODE: Multiple passes with DOC limit
@@ -81,13 +87,13 @@ else:
         level_depth = min(doc, self.depth - current_depth)
 
         # Move to start radius (+X from center)
-        await self._send_and_log(f'G0 X{start_radius}')
+        await self._send_and_log(f'G0 X{start_radius:.3f}')
 
         # Helical plunge at start_radius (3 spirals per DOC)
         plunge_remaining = level_depth
         while plunge_remaining > 0:
             descend = min(pitch, plunge_remaining)
-            await self._send_and_log(f'G3 I{-start_radius} J0 Z{-descend} F{FEED_PLUNGE}')
+            await self._send_and_log(f'G3 I{-start_radius:.3f} J0 Z{-descend:.3f} F{FEED_PLUNGE}')
             plunge_remaining -= descend
         await self._wait_idle()
 
@@ -101,30 +107,30 @@ else:
             while (step_sign > 0 and current_radius < target) or \
                   (step_sign < 0 and current_radius > target):
                 # Full circle at current radius
-                await self._send_and_log(f'G3 I{-current_radius} J0 F{FEED_CUT}')
+                await self._send_and_log(f'G3 I{-current_radius:.3f} J0 F{FEED_CUT}')
 
                 # Step toward target
                 remaining = abs(target - current_radius)
                 step = min(stepover, remaining)
-                await self._send_and_log(f'G1 X{step_sign * step} F{FEED_CUT}')
+                await self._send_and_log(f'G1 X{step_sign * step:.3f} F{FEED_CUT}')
                 current_radius += step_sign * step
                 await self._wait_idle()
 
             # Cleanup circle at end radius
-            await self._send_and_log(f'G3 I{-current_radius} J0 F{FEED_CUT}')
+            await self._send_and_log(f'G3 I{-current_radius:.3f} J0 F{FEED_CUT}')
         else:
             # SLOT MODE: just one cleanup circle at same radius
             current_radius = start_radius
-            await self._send_and_log(f'G3 I{-current_radius} J0 F{FEED_CUT}')
+            await self._send_and_log(f'G3 I{-current_radius:.3f} J0 F{FEED_CUT}')
 
         await self._log(f'Level {current_depth:.2f}mm complete')
 
         # Return to center for next level
-        await self._send_and_log(f'G0 X{-current_radius}')
+        await self._send_and_log(f'G0 X{-current_radius:.3f}')
 
-# Retract
-await self._send_and_log(f'G0 Z{self.depth + 2}')
-
+# Return to start position: Z first, then XY
 await self._send_and_log('M5')
 await self._send_and_log('G90')
+await self._send_and_log(f'G0 Z{start_z:.3f}')
+await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
 await self._log('=== OD CONTOUR COMPLETE ===')
