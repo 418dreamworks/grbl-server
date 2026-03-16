@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>CNC Control</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
@@ -305,6 +306,60 @@
         .custom-tool-row button:active {
             background: #555 !important;
         }
+
+        /* Macro parameter modal */
+        .macro-param-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .macro-param-row label {
+            min-width: 100px;
+            color: #aaa;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: right;
+        }
+        .macro-param-row input {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            background: #111;
+            border: 2px solid #555;
+            color: #fff;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .macro-param-row input:focus {
+            outline: none;
+            border-color: #4f4;
+        }
+        .macro-param-row .unit-label {
+            color: #666;
+            font-size: 12px;
+            min-width: 24px;
+        }
+        .feed-selector {
+            display: flex;
+            gap: 6px;
+            margin-top: 12px;
+            margin-bottom: 12px;
+        }
+        .feed-selector button {
+            flex: 1;
+            padding: 12px 8px !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            background: #2a2a2a !important;
+            border: 2px solid #555 !important;
+            border-radius: 4px !important;
+        }
+        .feed-selector button.active {
+            background: #1a4a1a !important;
+            border-color: #4f4 !important;
+        }
+
         .pos .label.clickable { cursor: pointer; text-decoration: underline; }
         .pos .label.clickable:hover { color: #aaa; }
         .unit { color: #888; margin-left: 10px; }
@@ -392,7 +447,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.130</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.158</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -456,9 +511,9 @@
         <div style="display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; color: #444; min-width: 520px;">
                 <span class="label clickable" onclick="runMacro('HOMING')" style="display:inline-block;width:50px;margin-right:15px;cursor:pointer;" title="Click to home all axes">MPOS:</span>
-                <span><span style="color: #553; margin-right:-9px;">X:</span><span id="machX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HX')">&#x2192;0</button></span>
-                <span><span style="color: #553; margin-right:-9px;">Y:</span><span id="machY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HY')">&#x2192;0</button></span>
-                <span><span style="color: #553; margin-right:-9px;">Z:</span><span id="machZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="cmd('$HZ')">&#x2192;0</button></span>
+                <span><span style="color: #553; margin-right:-9px;">X:</span><span id="machX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'X'})">&#x2192;0</button></span>
+                <span><span style="color: #553; margin-right:-9px;">Y:</span><span id="machY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'Y'})">&#x2192;0</button></span>
+                <span><span style="color: #553; margin-right:-9px;">Z:</span><span id="machZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'Z'})">&#x2192;0</button></span>
                 <span><span style="color: #553; margin-right:-9px;">A:</span><span id="machA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
             </div>
             <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="machineSpeedValue" style="display:inline-block;width:5ch;text-align:right;">0</span><span id="machineSpeedUnit" class="clickable" onclick="toggleUnits()" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;cursor:pointer;text-decoration:underline;">mm/min</span></span>
@@ -486,10 +541,11 @@
                 <button onclick="gotoXY(workMaxX/2, workMaxY-MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2193;</span></button>
                 <button onclick="gotoXY(MARGIN, workMaxY-MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2198;</span></button>
             </div>
-            <div class="xy-grid">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
                 <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 X0 Y0')">X0 Y0</button>
                 <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 Z0')">Z0</button>
                 <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 Z10')">Z10</button>
+                <button style="background:#6a2a2a; border-color:#8a3a3a; min-height:49px;" onclick="cmd('G53 G0 Z-2')" title="Raise Z to near machine home (MPos Z=-2)">Z Top</button>
             </div>
             <!-- JOG -->
             <div style="font-size:14.5px; color:#888; text-align:center; margin-top:20px;">JOG</div>
@@ -516,9 +572,9 @@
             <!-- PROBE -->
             <div style="font-size:14.5px; color:#888; text-align:center; margin-top:20px;">PROBE</div>
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
-                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="runProbeZ()">Z</button>
-                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_x')">X</button>
-                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_y')">Y</button>
+                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="runProbeZ()" title="Probe Z surface with touch plate (22mm). Sets Z=22 at contact.">Z</button>
+                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_x')" title="Probe X edge (left/right). Plunges 6mm, probes fast then slow, sets X with 7mm plate offset + tool radius.">X</button>
+                <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_y')" title="Probe Y edge (front/back). Plunges 6mm, probes fast then slow, sets Y with 7mm plate offset + tool radius.">Y</button>
             </div>
         </div>
     </div>
@@ -531,37 +587,39 @@
                 <div>
                     <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">TOOL</div>
                     <div class="tool-buttons" style="display: flex; gap: 8px;">
-                        <button style="flex: 1; min-height:49px;" onclick="runMacro('set_z')">Measure</button>
-                        <button style="flex: 1; min-height:49px;" onclick="runMacro('tool_change')">Change</button>
+                        <button style="flex: 1; min-height:49px;" onclick="runMacro('set_z')" title="Measure tool length. Goes to G28 probe position, probes Z, stores reference height for tool changes.">Measure</button>
+                        <button style="flex: 1; min-height:49px;" onclick="runMacro('tool_change')" title="Tool change with auto length compensation. Goes to change position, waits for new tool, re-probes Z, applies offset.">Change</button>
                     </div>
                 </div>
                 <!-- ROTARY -->
                 <div style="margin-top:20px;">
                     <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">ROTARY</div>
                     <div style="display: flex; gap: 4px;">
-                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_chuck')">Chuck Find</button>
-                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_tailstock')">Tailstock</button>
+                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_chuck')" title="Find chuck center. Probes X, Y, Z edges, then applies chuck offsets (X-50, Y-20, Z+26) so (0,0,0) = chuck centerline.">Chuck Find</button>
+                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_tailstock')" title="Check tailstock alignment. Probes tailstock to verify it's aligned with chuck center.">Tailstock</button>
+                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="startRotaryTurning()" title="Rotary turning cycle. Cuts from start diameter to end diameter between X positions, with helical plunge and springback passes.">Turning</button>
                     </div>
                 </div>
                 <!-- MILLING -->
                 <div style="margin-top:20px;">
                     <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">MILLING</div>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-                        <button style="min-height:49px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="showToolDiaModal('milling_boring')">Boring</button>
-                        <button style="min-height:49px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_facing')">Facing</button>
-                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_drill')">Drill</button>
-                        <button style="min-height:49px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="showToolDiaModal('milling_line_contour')">Line</button>
-                        <button style="min-height:49px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="showToolDiaModal('milling_od_contour')">OD</button>
+                        <button style="min-height:49px; background:#2a4a4a; border-color:#3a6a6a; font-size:11px;" onclick="showToolDiaModal('milling_boring')" title="Helical bore. Plunges with helix at center, then spirals outward to bore diameter. DOC from config.">Boring</button>
+                        <button style="min-height:49px; background:#4a2a4a; border-color:#6a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_facing')" title="Rectangular pocket/face. Zigzag passes with tool-radius offset so pocket = specified dimensions. DOC from config.">Facing</button>
+                        <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_drill')" title="Peck drill at current XY. Pecks in increments of tool_dia/2, retracts to clear chips each peck.">Drill</button>
+                        <button style="min-height:49px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="showToolDiaModal('milling_line_contour')" title="Line slot or zigzag face. Width=0: single slot along Y. Width>0: zigzag passes to cover width. DOC from config.">Line</button>
+                        <button style="min-height:49px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="showToolDiaModal('milling_od_contour')" title="Circular OD pocket. Helical plunge at center, spiral out to diameter. Multiple depth passes from config DOC.">OD</button>
+                        <button style="min-height:49px; background:#5a3a3a; border-color:#7a5a5a; font-size:11px;" onclick="runMacro('spindle_breakin')" title="Spindle break-in cycle. Runs spindle at increasing RPMs for timed intervals to break in bearings.">Break-In</button>
                     </div>
                 </div>
                 <!-- SAFETY -->
                 <div style="margin-top:20px;">
                     <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">SAFETY</div>
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
-                        <button style="min-height:49px; background:#3a3a3a; border-color:#555; font-size:12px;" onclick="addFixture()">Add Fixture</button>
-                        <button style="min-height:49px; background:#4a2a2a; border-color:#6a3a3a; font-size:12px;" onclick="clearFixtures()">Clear Fixtures</button>
-                        <button style="min-height:49px; background:#2a3a4a; border-color:#3a5a6a; font-size:12px;" onclick="runZCheck()">Z Check</button>
-                        <button style="min-height:49px; background:#2a3a4a; border-color:#3a5a6a; font-size:12px;" onclick="runXYCheck()">XY Check</button>
+                        <button style="min-height:49px; background:#3a3a3a; border-color:#555; font-size:12px;" onclick="addFixture()" title="Add a fixture (clamp/hold-down) at current XY with specified radius. Used for collision checking against loaded G-code.">Add Fixture</button>
+                        <button style="min-height:49px; background:#4a2a2a; border-color:#6a3a3a; font-size:12px;" onclick="clearFixtures()" title="Remove all fixtures from collision checking.">Clear Fixtures</button>
+                        <button style="min-height:49px; background:#2a3a4a; border-color:#3a5a6a; font-size:12px;" onclick="runZCheck()" title="Plunge to G-code max depth at current XY for visual verification before cutting.">Z Check</button>
+                        <button style="min-height:49px; background:#2a3a4a; border-color:#3a5a6a; font-size:12px;" onclick="runXYCheck()" title="Trace XY bounds of loaded G-code at safe Z height to verify work envelope.">XY Check</button>
                     </div>
                 </div>
                 <!-- DEBUG -->
@@ -613,8 +671,9 @@
                 <input type="text" id="gcodeInput" placeholder="G-code..."
                        style="flex: 1; margin: 0 8px; padding: 4px 8px; background: #222; border: 1px solid #444;
                               border-radius: 4px; color: #fff; font-family: monospace; font-size: 12px;"
-                       onkeydown="if(event.key==='Enter'){sendGcodeInput();event.preventDefault();}">
+                       onkeydown="handleGcodeKeydown(event)">
                 <button onclick="sendGcodeInput()" style="padding: 4px 12px; font-size: 11px; margin-right: 8px;">Send</button>
+                <button onclick="clearDebugLog()" style="padding:2px 8px;font-size:11px;margin-right:4px;">Clear</button>
                 <button onclick="copyDebugLog(event)" style="padding:2px 8px;font-size:11px;margin-right:4px;">Copy</button>
                 <span id="debugToggle" onclick="toggleDebug()" style="cursor:pointer;">&#x25B2;</span>
             </div>
@@ -677,6 +736,10 @@
                     <button onclick="adjustStartSpindle(1000)" style="padding: 4px 8px; font-size: 14px;">+</button>
                     <span style="color: #888; margin-left: 4px;">RPM</span>
                 </div>
+                <label style="cursor: pointer; display: block; margin-top: 8px;">
+                    <input type="checkbox" id="airCut" style="margin-right: 8px;">
+                    Air cut (no spindle, max speed)
+                </label>
             </div>
             <div class="modal-buttons">
                 <button onclick="closeStartJobModal()" style="background:#4a2a2a;">Cancel</button>
@@ -760,6 +823,24 @@
             </div>
             <div class="modal-buttons">
                 <button onclick="closeProbeEdgeModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Macro Parameters Modal -->
+    <div class="modal" id="macroParamsModal" onclick="if(event.target===this)closeMacroParamsModal()">
+        <div class="modal-content" style="min-width: 340px;">
+            <h3 id="macroParamsTitle">Parameters</h3>
+            <div id="macroParamsFields"></div>
+            <div style="text-align:center; color:#666; font-size:12px; margin-top:8px;">FEED (mm/min)</div>
+            <div class="feed-selector" id="macroFeedSelector">
+                <button onclick="selectMacroFeed(300)">300</button>
+                <button onclick="selectMacroFeed(600)">600</button>
+                <button onclick="selectMacroFeed(900)">900</button>
+            </div>
+            <div class="modal-buttons" style="display:flex; gap:8px;">
+                <button onclick="closeMacroParamsModal()" style="flex:1; background:#2a2a2a; border-color:#444;">Cancel</button>
+                <button onclick="runMacroFromModal()" style="flex:1; background:#1a4a1a; border-color:#4f4; font-size:14px; font-weight:700;">RUN</button>
             </div>
         </div>
     </div>
@@ -876,7 +957,10 @@
                 case 'file_error':   handleFileError(msg); break;
                 case 'file_start_error':
                     debugLog('START ERROR: ' + msg.error, 'error');
-                    alert('Cannot start file: ' + msg.error);
+                    var lp = document.getElementById('lineProgress');
+                    lp.textContent = msg.error;
+                    lp.style.color = '#f66';
+                    setTimeout(function(){ lp.style.color = ''; }, 10000);
                     break;
                 case 'macro_status': handleMacroStatus(msg); break;
                 case 'macro_done':   handleMacroDone(msg); break;
@@ -1039,6 +1123,8 @@
             document.getElementById('machineState').className = 'machine-state idle';
             debugLog('Connected to ' + msg.port, 'info');
             updateButtonStates();
+            // Re-request settings after delay ($$  response needs time to parse)
+            setTimeout(() => wsSend({ type: 'settings' }), 1500);
         }
 
         function handleDisconnected() {
@@ -1137,11 +1223,12 @@
         function startJobFromModal() {
             const fromLine = parseInt(document.getElementById('startLine').value) || 1;
             const spindleFirst = document.getElementById('spindleFirst').checked;
+            const airCut = document.getElementById('airCut').checked;
 
             closeStartJobModal();
 
-            // Turn on spindle first if requested
-            if (spindleFirst) {
+            // Turn on spindle first if requested (not in air cut mode)
+            if (spindleFirst && !airCut) {
                 wsSend({ type: 'gcode', line: 'M3 S' + startSpindleSpeed });
                 debugLog('Spindle ON (M3 S' + startSpindleSpeed + ')', 'info');
             }
@@ -1149,8 +1236,9 @@
             // Start streaming
             const payload = { type: 'file_start' };
             if (fromLine > 1) payload.from_line = fromLine;
+            if (airCut) payload.air_cut = true;
             wsSend(payload);
-            debugLog('Starting from line ' + fromLine, 'info');
+            debugLog('Starting from line ' + fromLine + (airCut ? ' (AIR CUT)' : ''), 'info');
         }
 
         function handleFileStatus(msg) {
@@ -1497,7 +1585,7 @@
 
         function jog(axis, dir) {
             jogCounter++;
-            const dist = jogStep * dir;
+            const dist = toMM(jogStep) * dir;  // Convert to mm for GRBL
             let targetX = pendingX, targetY = pendingY, targetZ = pendingZ, targetA = pendingA;
             if (axis === 'X') targetX += dist;
             if (axis === 'Y') targetY += dist;
@@ -1654,178 +1742,13 @@
 
         function jobStop() {
             wsSend({ type: 'file_stop' });
-            sendRealtime(0x9E);
+            if (macroRunning) {
+                wsSend({ type: 'macro_cancel' });
+                sendRealtime(0x21);  // Feed hold to stop motion immediately
+            }
+            sendRealtime(0x9E);  // Spindle stop
             spindleWasRunning = false;
             streamerPaused = false;
-        }
-
-        // ========== BORING ==========
-        function runBoring() {
-            if (!connected) return;
-            const diameter = prompt('Bore diameter (mm)?', '10');
-            if (!diameter) return;
-            const depth = prompt('Bore depth (mm)?', '5');
-            if (!depth) return;
-            const radius = parseFloat(diameter) / 2;
-            const d = parseFloat(depth);
-            // Boring cycle: move to edge, plunge, cut circle, retract
-            cmd('G91');  // Relative mode
-            cmd('G0 X' + radius.toFixed(3));  // Move to edge
-            cmd('G1 Z-' + d.toFixed(3) + ' F500');  // Plunge
-            cmd('G2 I-' + radius.toFixed(3) + ' J0 F300');  // Full circle
-            cmd('G0 Z' + d.toFixed(3));  // Retract
-            cmd('G0 X-' + radius.toFixed(3));  // Return to center
-            cmd('G90');  // Back to absolute
-            debugLog('Boring: D=' + diameter + ' depth=' + depth, 'info');
-        }
-
-        // ========== FACING ==========
-        function runFacing() {
-            if (!connected) return;
-            const width = prompt('Face width X (mm)?', '50');
-            if (!width) return;
-            const length = prompt('Face length Y (mm)?', '50');
-            if (!length) return;
-            const stepover = prompt('Stepover (mm)?', '5');
-            if (!stepover) return;
-            const depth = prompt('Face depth (mm)?', '0.5');
-            if (!depth) return;
-            const w = parseFloat(width);
-            const l = parseFloat(length);
-            const s = parseFloat(stepover);
-            const d = parseFloat(depth);
-            // Facing: zigzag pattern from current position
-            cmd('G91');  // Relative mode
-            cmd('G1 Z-' + d.toFixed(3) + ' F500');  // Plunge
-            let y = 0;
-            let dir = 1;
-            while (y < l) {
-                cmd('G1 X' + (dir * w).toFixed(3) + ' F800');
-                if (y + s < l) {
-                    cmd('G1 Y' + s.toFixed(3) + ' F800');
-                }
-                y += s;
-                dir *= -1;
-            }
-            cmd('G0 Z' + d.toFixed(3));  // Retract
-            cmd('G90');  // Back to absolute
-            debugLog('Facing: ' + width + 'x' + length + ' step=' + stepover + ' depth=' + depth, 'info');
-        }
-
-        // ========== LINE CONTOUR ==========
-        function runLineContour() {
-            if (!connected) return;
-            const length = prompt('Line length (mm)?', '50');
-            if (!length) return;
-            const depth = prompt('Cut depth (mm)?', '5');
-            if (!depth) return;
-            const dir = prompt('Direction? (X, Y, or angle)', 'X');
-            if (!dir) return;
-            const l = parseFloat(length);
-            const d = parseFloat(depth);
-            cmd('G91');  // Relative mode
-            cmd('G1 Z-' + d.toFixed(3) + ' F500');  // Plunge
-            if (dir.toUpperCase() === 'X') {
-                cmd('G1 X' + l.toFixed(3) + ' F600');
-            } else if (dir.toUpperCase() === 'Y') {
-                cmd('G1 Y' + l.toFixed(3) + ' F600');
-            } else {
-                const angle = parseFloat(dir) * Math.PI / 180;
-                const dx = l * Math.cos(angle);
-                const dy = l * Math.sin(angle);
-                cmd('G1 X' + dx.toFixed(3) + ' Y' + dy.toFixed(3) + ' F600');
-            }
-            cmd('G0 Z' + d.toFixed(3));  // Retract
-            cmd('G90');  // Back to absolute
-            debugLog('Line: length=' + length + ' depth=' + depth + ' dir=' + dir, 'info');
-        }
-
-        // ========== OD MILLING ==========
-        function runODMilling() {
-            if (!connected) return;
-            const diameter = prompt('OD diameter (mm)?', '20');
-            if (!diameter) return;
-            const depth = prompt('Cut depth (mm)?', '5');
-            if (!depth) return;
-            const radius = parseFloat(diameter) / 2;
-            const d = parseFloat(depth);
-            // OD: cut around outside of circle from current center
-            cmd('G91');  // Relative mode
-            cmd('G0 X' + radius.toFixed(3));  // Move to edge
-            cmd('G1 Z-' + d.toFixed(3) + ' F500');  // Plunge
-            cmd('G3 I-' + radius.toFixed(3) + ' J0 F300');  // CCW full circle (climb milling)
-            cmd('G0 Z' + d.toFixed(3));  // Retract
-            cmd('G0 X-' + radius.toFixed(3));  // Return to center
-            cmd('G90');  // Back to absolute
-            debugLog('OD: D=' + diameter + ' depth=' + depth, 'info');
-        }
-
-        // ========== SLOTTING ==========
-        function runSlotting() {
-            if (!connected) return;
-            const length = prompt('Slot length (mm)?', '20');
-            if (!length) return;
-            const depth = prompt('Slot depth (mm)?', '5');
-            if (!depth) return;
-            const stepdown = prompt('Step-down per pass (mm)?', '2');
-            if (!stepdown) return;
-            const dir = prompt('Direction? (X or Y)', 'X');
-            if (!dir) return;
-            const l = parseFloat(length);
-            const d = parseFloat(depth);
-            const sd = parseFloat(stepdown);
-            cmd('G91');  // Relative mode
-            let currentDepth = 0;
-            while (currentDepth < d) {
-                const thisStep = Math.min(sd, d - currentDepth);
-                cmd('G1 Z-' + thisStep.toFixed(3) + ' F300');  // Step down
-                if (dir.toUpperCase() === 'X') {
-                    cmd('G1 X' + l.toFixed(3) + ' F400');
-                    cmd('G1 X-' + l.toFixed(3) + ' F400');
-                } else {
-                    cmd('G1 Y' + l.toFixed(3) + ' F400');
-                    cmd('G1 Y-' + l.toFixed(3) + ' F400');
-                }
-                currentDepth += thisStep;
-            }
-            cmd('G0 Z' + d.toFixed(3));  // Retract
-            cmd('G90');  // Back to absolute
-            debugLog('Slot: length=' + length + ' depth=' + depth + ' stepdown=' + stepdown + ' dir=' + dir, 'info');
-        }
-
-        // ========== TAILSTOCK FIND ==========
-        function runTailstockFind() {
-            if (!connected) return;
-            // Zero A axis at current position (tailstock alignment)
-            cmd('G10 L20 P1 A0');
-            debugLog('Tailstock Find: A zeroed', 'info');
-        }
-
-        // ========== OD CONTOUR ==========
-        function runODContour() {
-            if (!connected) return;
-            const diameter = prompt('OD diameter (mm)?', '20');
-            if (!diameter) return;
-            const depth = prompt('Total depth (mm)?', '5');
-            if (!depth) return;
-            const stepdown = prompt('Step-down per pass (mm)?', '2');
-            if (!stepdown) return;
-            const radius = parseFloat(diameter) / 2;
-            const d = parseFloat(depth);
-            const sd = parseFloat(stepdown);
-            cmd('G91');  // Relative mode
-            cmd('G0 X' + radius.toFixed(3));  // Move to edge
-            let currentDepth = 0;
-            while (currentDepth < d) {
-                const thisStep = Math.min(sd, d - currentDepth);
-                cmd('G1 Z-' + thisStep.toFixed(3) + ' F300');  // Step down
-                cmd('G3 I-' + radius.toFixed(3) + ' J0 F300');  // CCW full circle
-                currentDepth += thisStep;
-            }
-            cmd('G0 Z' + d.toFixed(3));  // Retract
-            cmd('G0 X-' + radius.toFixed(3));  // Return to center
-            cmd('G90');  // Back to absolute
-            debugLog('OD Contour: D=' + diameter + ' depth=' + depth + ' stepdown=' + stepdown, 'info');
         }
 
         // ========== VIEW STATE (must be before fixtures) ==========
@@ -2131,7 +2054,8 @@
         function runMacro(name) {
             if (!connected) return;
             if (name === 'HOMING') {
-                cmd('$H');
+                // Server-side homing: saves WPos, homes Z/X/Y sequentially, restores WPos
+                wsSend({ type: 'home', axes: 'ZXY' });
                 return;
             }
             if (name === 'tool_change' && !setZDone) {
@@ -2145,6 +2069,58 @@
         // ========== TOOL DIAMETER MODAL ==========
         let pendingMacro = '';
         let pendingToolDia = 0;
+        let pendingMacroFeed = 300;
+
+        // Macro parameter definitions: { name, label, key (for wsSend), default }
+        const MACRO_PARAMS = {
+            milling_drill: [
+                { label: 'Depth', key: 'depth', def: 10 }
+            ],
+            milling_boring: [
+                { label: 'Bore Dia', key: 'bore_dia', def: 10 },
+                { label: 'Depth', key: 'depth', def: 5 }
+            ],
+            milling_facing: [
+                { label: 'Length X', key: 'length', def: 50 },
+                { label: 'Width Y', key: 'width', def: 50 },
+                { label: 'Depth', key: 'depth', def: 1 }
+            ],
+            milling_line_contour: [
+                { label: 'End X', key: 'end_x', def: 50 },
+                { label: 'End Y', key: 'end_y', def: 0 },
+                { label: 'Width', key: 'width', def: 0 },
+                { label: 'Depth', key: 'depth', def: 5 }
+            ],
+            milling_od_contour: [
+                { label: 'Start Dia', key: 'start_dia', def: 10 },
+                { label: 'End Dia', key: 'end_dia', def: 20 },
+                { label: 'Depth', key: 'depth', def: 5 }
+            ]
+        };
+
+        const MACRO_TITLES = {
+            milling_drill: 'DRILL',
+            milling_boring: 'BORING',
+            milling_facing: 'FACING',
+            milling_line_contour: 'LINE CONTOUR',
+            milling_od_contour: 'OD CONTOUR'
+        };
+
+        // localStorage helpers for persistent defaults
+        function getMacroDefault(macro, key, fallback) {
+            const v = localStorage.getItem('macro_' + macro + '_' + key);
+            return v !== null ? parseFloat(v) : fallback;
+        }
+        function setMacroDefault(macro, key, value) {
+            localStorage.setItem('macro_' + macro + '_' + key, value);
+        }
+        function getMacroFeed(macro) {
+            const v = localStorage.getItem('macro_' + macro + '_feed');
+            return v !== null ? parseFloat(v) : 300;
+        }
+        function setMacroFeed(macro, value) {
+            localStorage.setItem('macro_' + macro + '_feed', value);
+        }
 
         function showToolDiaModal(macroName) {
             if (!connected) return;
@@ -2168,7 +2144,6 @@
             const unit = document.getElementById('customToolDiaUnit').value;
             let value = parseFloat(input.value);
             if (isNaN(value) || value <= 0) return;
-            // Convert to mm if inches
             if (unit === 'in') value *= 25.4;
             selectProbeToolDia(value);
         }
@@ -2208,49 +2183,104 @@
                 return;
             }
 
-            // Milling macros - need additional parameters
-            if (pendingMacro === 'milling_drill') {
-                const depth = prompt('Drill depth (mm)?', '10');
-                if (!depth) { pendingMacro = ''; return; }
-                debugLog('=== MACRO: milling_drill (tool=' + toolDiameter + 'mm) ===', 'info');
-                wsSend({ type: 'macro_run', name: 'milling_drill', tool_diameter: toolDiameter, depth: parseFloat(depth) });
-            } else if (pendingMacro === 'milling_boring') {
-                const dia = prompt('Bore diameter (mm)?', '10');
-                if (!dia) { pendingMacro = ''; return; }
-                const depth = prompt('Bore depth (mm)?', '5');
-                if (!depth) { pendingMacro = ''; return; }
-                debugLog('=== MACRO: milling_boring (tool=' + toolDiameter + 'mm) ===', 'info');
-                wsSend({ type: 'macro_run', name: 'milling_boring', tool_diameter: toolDiameter, bore_dia: parseFloat(dia), depth: parseFloat(depth) });
-            } else if (pendingMacro === 'milling_facing') {
-                const length = prompt('Length X (mm)?', '50');
-                if (!length) { pendingMacro = ''; return; }
-                const width = prompt('Width Y (mm)?', '50');
-                if (!width) { pendingMacro = ''; return; }
-                const depth = prompt('Depth (mm)?', '1');
-                if (!depth) { pendingMacro = ''; return; }
-                debugLog('=== MACRO: milling_facing (tool=' + toolDiameter + 'mm) ===', 'info');
-                wsSend({ type: 'macro_run', name: 'milling_facing', tool_diameter: toolDiameter, length: parseFloat(length), width: parseFloat(width), depth: parseFloat(depth) });
-            } else if (pendingMacro === 'milling_line_contour') {
-                const endX = prompt('End X (mm, relative)?', '50');
-                if (!endX) { pendingMacro = ''; return; }
-                const endY = prompt('End Y (mm, relative)?', '0');
-                if (!endY) { pendingMacro = ''; return; }
-                const width = prompt('Width (mm, 0=slot)?', '0');
-                if (width === null) { pendingMacro = ''; return; }
-                const depth = prompt('Depth (mm)?', '5');
-                if (!depth) { pendingMacro = ''; return; }
-                debugLog('=== MACRO: milling_line_contour (tool=' + toolDiameter + 'mm) ===', 'info');
-                wsSend({ type: 'macro_run', name: 'milling_line_contour', tool_diameter: toolDiameter, end_x: parseFloat(endX), end_y: parseFloat(endY), width: parseFloat(width), depth: parseFloat(depth) });
-            } else if (pendingMacro === 'milling_od_contour') {
-                const startDia = prompt('Start diameter (mm)?', '10');
-                if (!startDia) { pendingMacro = ''; return; }
-                const endDia = prompt('End diameter (mm)?', '20');
-                if (!endDia) { pendingMacro = ''; return; }
-                const depth = prompt('Depth (mm)?', '5');
-                if (!depth) { pendingMacro = ''; return; }
-                debugLog('=== MACRO: milling_od_contour (tool=' + toolDiameter + 'mm) ===', 'info');
-                wsSend({ type: 'macro_run', name: 'milling_od_contour', tool_diameter: toolDiameter, start_dia: parseFloat(startDia), end_dia: parseFloat(endDia), depth: parseFloat(depth) });
+            // Milling macros - show parameter modal
+            if (MACRO_PARAMS[pendingMacro]) {
+                showMacroParamsModal(pendingMacro, toolDiameter);
+                return;
             }
+
+            pendingMacro = '';
+            pendingToolDia = 0;
+        }
+
+        function showMacroParamsModal(macroName, toolDiameter) {
+            const params = MACRO_PARAMS[macroName];
+            const title = MACRO_TITLES[macroName] || macroName;
+            document.getElementById('macroParamsTitle').textContent = title + ' (tool=' + toolDiameter.toFixed(2) + 'mm)';
+
+            // Build input fields
+            const container = document.getElementById('macroParamsFields');
+            container.innerHTML = '';
+            params.forEach(p => {
+                const val = getMacroDefault(macroName, p.key, p.def);
+                container.innerHTML += `
+                    <div class="macro-param-row">
+                        <label>${p.label}</label>
+                        <input type="number" step="0.001" id="mp_${p.key}" value="${val}">
+                        <span class="unit-label">mm</span>
+                    </div>`;
+            });
+
+            // Feed selector
+            pendingMacroFeed = getMacroFeed(macroName);
+            updateFeedButtons();
+
+            document.getElementById('macroParamsModal').classList.add('open');
+            // Focus first input
+            setTimeout(() => {
+                const first = container.querySelector('input');
+                if (first) first.select();
+            }, 100);
+        }
+
+        function selectMacroFeed(value) {
+            pendingMacroFeed = value;
+            updateFeedButtons();
+        }
+
+        function updateFeedButtons() {
+            document.querySelectorAll('#macroFeedSelector button').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.textContent) === pendingMacroFeed);
+            });
+        }
+
+        function closeMacroParamsModal() {
+            document.getElementById('macroParamsModal').classList.remove('open');
+            pendingMacro = '';
+            pendingToolDia = 0;
+        }
+
+        function runMacroFromModal() {
+            const macroName = pendingMacro;
+            const toolDiameter = pendingToolDia;
+
+            // Rotary turning has its own param list + stock_shape
+            if (macroName === 'rotary_turning') {
+                const keys = ['tool_diameter', 'stock_dim', 'd_start', 'x_start', 'd_end', 'x_end'];
+                const msg = { type: 'macro_run', name: 'rotary_turning', stock_shape: turningStockShape, feed_override: pendingMacroFeed };
+                for (const key of keys) {
+                    const input = document.getElementById('mp_' + key);
+                    const val = parseFloat(input.value);
+                    if (isNaN(val)) { input.focus(); return; }
+                    msg[key] = val;
+                    setMacroDefault('rotary_turning', key, val);
+                }
+                setMacroFeed('rotary_turning', pendingMacroFeed);
+                document.getElementById('macroParamsModal').classList.remove('open');
+                debugLog('=== MACRO: rotary_turning (tool=' + msg.tool_diameter + 'mm, feed=' + pendingMacroFeed + ') ===', 'info');
+                wsSend(msg);
+                pendingMacro = '';
+                pendingToolDia = 0;
+                return;
+            }
+
+            const params = MACRO_PARAMS[macroName];
+            if (!params) return;
+
+            // Collect values from inputs
+            const msg = { type: 'macro_run', name: macroName, tool_diameter: toolDiameter, feed_override: pendingMacroFeed };
+            for (const p of params) {
+                const input = document.getElementById('mp_' + p.key);
+                const val = parseFloat(input.value);
+                if (isNaN(val)) { input.focus(); return; }
+                msg[p.key] = val;
+                setMacroDefault(macroName, p.key, val);
+            }
+            setMacroFeed(macroName, pendingMacroFeed);
+
+            document.getElementById('macroParamsModal').classList.remove('open');
+            debugLog('=== MACRO: ' + macroName + ' (tool=' + toolDiameter + 'mm, feed=' + pendingMacroFeed + ') ===', 'info');
+            wsSend(msg);
             pendingMacro = '';
             pendingToolDia = 0;
         }
@@ -2276,21 +2306,88 @@
             closeProbeEdgeModal();
         }
 
+        // ========== ROTARY TURNING ==========
+        let turningStockShape = 'square';
+
+        function startRotaryTurning() {
+            if (!connected) return;
+            pendingMacro = 'rotary_turning';
+
+            // Build turning params modal
+            const params = [
+                { label: 'Tool Dia', key: 'tool_diameter', def: 6 },
+                { label: 'Stock Dim', key: 'stock_dim', def: 25 },
+                { label: 'D Start', key: 'd_start', def: 20 },
+                { label: 'X Start', key: 'x_start', def: 0 },
+                { label: 'D End', key: 'd_end', def: 20 },
+                { label: 'X End', key: 'x_end', def: 50 }
+            ];
+
+            document.getElementById('macroParamsTitle').textContent = 'ROTARY TURNING';
+            const container = document.getElementById('macroParamsFields');
+
+            // Stock shape toggle
+            turningStockShape = localStorage.getItem('macro_rotary_turning_stock_shape') || 'square';
+            let html = `<div style="display:flex; gap:6px; margin-bottom:10px;">
+                <button id="stockSquareBtn" onclick="setStockShape('square')" style="flex:1; padding:10px; font-size:13px;">SQUARE</button>
+                <button id="stockCircleBtn" onclick="setStockShape('circle')" style="flex:1; padding:10px; font-size:13px;">CIRCLE</button>
+            </div>`;
+
+            params.forEach(p => {
+                const val = getMacroDefault('rotary_turning', p.key, p.def);
+                html += `<div class="macro-param-row">
+                    <label>${p.label}</label>
+                    <input type="number" step="0.001" id="mp_${p.key}" value="${val}">
+                    <span class="unit-label">mm</span>
+                </div>`;
+            });
+            container.innerHTML = html;
+
+            // Feed selector
+            pendingMacroFeed = getMacroFeed('rotary_turning');
+            updateFeedButtons();
+            updateStockShapeButtons();
+
+            document.getElementById('macroParamsModal').classList.add('open');
+        }
+
+        function setStockShape(shape) {
+            turningStockShape = shape;
+            localStorage.setItem('macro_rotary_turning_stock_shape', shape);
+            updateStockShapeButtons();
+        }
+
+        function updateStockShapeButtons() {
+            const sq = document.getElementById('stockSquareBtn');
+            const ci = document.getElementById('stockCircleBtn');
+            if (!sq || !ci) return;
+            sq.style.background = turningStockShape === 'square' ? '#1a4a1a' : '#2a2a2a';
+            sq.style.borderColor = turningStockShape === 'square' ? '#4f4' : '#555';
+            ci.style.background = turningStockShape === 'circle' ? '#1a4a1a' : '#2a2a2a';
+            ci.style.borderColor = turningStockShape === 'circle' ? '#4f4' : '#555';
+        }
+
         // ========== UNITS ==========
         let currentUnit = 'mm';
         const mmSteps = [0.025, 0.25, 2.5, 25];
         const inSteps = [0.001, 0.01, 0.1, 1];
 
         function toggleUnits() {
-            if (currentUnit === 'mm') {
-                currentUnit = 'in';
-                if (connected) cmd('G20');
-            } else {
-                currentUnit = 'mm';
-                if (connected) cmd('G21');
-            }
+            // UI display only - GRBL always works in mm
+            // Conversion applied to display/input, never send G20/G21
+            currentUnit = (currentUnit === 'mm') ? 'in' : 'mm';
             document.getElementById('machineSpeedUnit').textContent = currentUnit + '/min';
             updateStepButtons();
+        }
+
+        // Convert mm value to display units
+        function toDisplayUnits(mmValue) {
+            return currentUnit === 'in' ? mmValue / 25.4 : mmValue;
+        }
+
+        // Convert input value to mm for GRBL
+        function toMM(inputValue) {
+            return currentUnit === 'in' ? inputValue * 25.4 : inputValue;
         }
 
         function updateStepButtons() {
@@ -2337,7 +2434,9 @@
                 document.getElementById('btnUnlock').disabled = true;
                 document.getElementById('btnReset').disabled = false;  // Allow reset
                 document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('.zero-btn').forEach(btn => btn.disabled = true);  // Disable zero/set buttons
                 document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('button[onclick^="showToolDiaModal"]').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = true);
                 gcodeInput.disabled = true;
                 return;
@@ -2352,7 +2451,9 @@
 
             const jogEnabled = (state === 'IDLE');
             document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = !jogEnabled);
+            document.querySelectorAll('.zero-btn').forEach(btn => btn.disabled = !jogEnabled);
             document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = !jogEnabled);
+            document.querySelectorAll('button[onclick^="showToolDiaModal"]').forEach(btn => btn.disabled = !jogEnabled);
             document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = !jogEnabled);
             gcodeInput.disabled = !jogEnabled;
         }
@@ -2372,23 +2473,7 @@
 
         function homeA() {
             if (!connected) return;
-            showConfirm('Unplug A axis stepper, then click Yes', (yes) => {
-                if (!yes) return;
-                cmd('$113=1000000');
-                cmd('$123=1000000');
-                cmd('G91');
-                cmd('G0 A-40000');
-                cmd('G90');
-                setTimeout(() => {
-                    showConfirm('Plug A axis stepper back in, then click Yes', (yes2) => {
-                        if (!yes2) return;
-                        cmd('$113=50');
-                        cmd('$123=20');
-                        cmd('G10 L20 P1 A0');
-                        debugLog('Home A complete: machine A reset, work A zeroed', 'info');
-                    });
-                }, 5000);
-            });
+            cmd('G90 G0 A0');
         }
 
         function hideContinue() {
@@ -2516,6 +2601,52 @@
                 setTimeout(() => btn.textContent = 'Copy', 1500);
             }
             document.body.removeChild(textarea);
+        }
+
+        function clearDebugLog() {
+            document.getElementById('debugLog').innerHTML = '';
+        }
+
+        // ========== COMMAND HISTORY ==========
+        const cmdHistory = [];
+        let cmdHistoryIndex = -1;
+        let cmdHistoryTemp = '';
+
+        function handleGcodeKeydown(event) {
+            const input = document.getElementById('gcodeInput');
+            if (event.key === 'Enter') {
+                const gcode = input.value.trim();
+                if (gcode) {
+                    // Add to history (avoid duplicates at end)
+                    if (cmdHistory.length === 0 || cmdHistory[cmdHistory.length - 1] !== gcode) {
+                        cmdHistory.push(gcode);
+                    }
+                    cmdHistoryIndex = -1;
+                    cmdHistoryTemp = '';
+                }
+                sendGcodeInput();
+                event.preventDefault();
+            } else if (event.key === 'ArrowUp') {
+                if (cmdHistory.length === 0) return;
+                if (cmdHistoryIndex === -1) {
+                    cmdHistoryTemp = input.value;
+                    cmdHistoryIndex = cmdHistory.length - 1;
+                } else if (cmdHistoryIndex > 0) {
+                    cmdHistoryIndex--;
+                }
+                input.value = cmdHistory[cmdHistoryIndex];
+                event.preventDefault();
+            } else if (event.key === 'ArrowDown') {
+                if (cmdHistoryIndex === -1) return;
+                if (cmdHistoryIndex < cmdHistory.length - 1) {
+                    cmdHistoryIndex++;
+                    input.value = cmdHistory[cmdHistoryIndex];
+                } else {
+                    cmdHistoryIndex = -1;
+                    input.value = cmdHistoryTemp;
+                }
+                event.preventDefault();
+            }
         }
 
         // ========== KEYBOARD SHORTCUTS ==========

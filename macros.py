@@ -2,9 +2,12 @@
 CNC Macros - SetZ and ToolChange
 """
 import asyncio
+import logging
 import time
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
+
+_elog = logging.getLogger('cnc_errors')
 
 if TYPE_CHECKING:
     from grbl_server import GrblConnection
@@ -163,13 +166,16 @@ class MacroEngine:
             # G10 L20 P1 Z-1
             await self._send_and_log('G10 L20 P1 Z-1')
 
-            # Go to G28 position (X Y Z only, not A) using queried coordinates
+            # Refresh G28 position from controller
+            await self.grbl.send_command('$#')
             g28 = self.grbl.g28_pos
             await self._log(f'G28 pos: X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
 
-            # Check if G28 position seems valid (not all zeros)
+            # Abort if G28 not set
             if g28['x'] == 0 and g28['y'] == 0 and g28['z'] == 0:
-                await self._log('WARNING: G28 position is 0,0,0 - may not be set! Use G28.1 to store probe position')
+                await self._log('ERROR: Probe position not set! Jog to probe plate and send G28.1')
+                await self._report_error('Probe position not set. Jog to probe plate and send G28.1')
+                return
 
             await self._send_and_log(f'G53 G0 X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
             await self._wait_idle()
@@ -303,13 +309,15 @@ class MacroEngine:
             # G10 L20 P1 Z0
             await self._send_and_log('G10 L20 P1 Z0')
 
-            # Go to G28 position (X Y Z only, not A) using queried coordinates
+            # Refresh G28 position from controller
+            await self.grbl.send_command('$#')
             g28 = self.grbl.g28_pos
             await self._log(f'G28 pos: X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
 
-            # Check if G28 position seems valid (not all zeros)
             if g28['x'] == 0 and g28['y'] == 0 and g28['z'] == 0:
-                await self._log('WARNING: G28 position is 0,0,0 - may not be set! Use G28.1 to store probe position')
+                await self._log('ERROR: Probe position not set!')
+                await self._report_error('Probe position not set. Jog to probe plate and send G28.1')
+                return
 
             await self._send_and_log(f'G53 G0 X{g28["x"]:.3f} Y{g28["y"]:.3f} Z{g28["z"]:.3f}')
             await self._wait_idle()
@@ -700,6 +708,8 @@ class MacroEngine:
 
     async def _send_and_log(self, gcode: str):
         """Send G-code command and log it."""
+        if self.cancel_flag:
+            raise Exception('Macro cancelled')
         await self._log(f'> {gcode}')
         await self.grbl.send_command(gcode)
 
@@ -839,6 +849,78 @@ class MacroEngine:
         finally:
             self.running = False
 
+    async def run_homing(self, axes: str = 'ZXY', reset_a: bool = True):
+        """
+        Home specified axes while preserving work coordinates.
+
+        Saves WCO before homing, homes each axis sequentially,
+        then restores WCO so work coordinates remain correct.
+
+        WPos = MPos - WCO, so after homing (MPos changes),
+        we set WPos = new_MPos - saved_WCO via G10 L20.
+
+        Args:
+            axes: String of axes to home, e.g. 'Z', 'X', 'ZXY'
+            reset_a: If True, reset A axis offset (for rotary accumulation)
+        """
+        self.current_macro = 'homing'
+        self.running = True
+        self.cancel_flag = False
+
+        try:
+            await self._log(f'=== HOMING {axes} ===')
+
+            # Save current WCO (Work Coordinate Offset)
+            await self._wait_idle()
+            saved_wco = {
+                'x': self.grbl.wco_cached['x'],
+                'y': self.grbl.wco_cached['y'],
+                'z': self.grbl.wco_cached['z'],
+            }
+            await self._log(f'Saved WCO: X{saved_wco["x"]:.3f} Y{saved_wco["y"]:.3f} Z{saved_wco["z"]:.3f}')
+
+            # Reset A axis if requested (instead of $RST=# which wipes all offsets)
+            if reset_a:
+                result = await self.grbl.send_command('G10 L20 P1 A0')
+                if result.startswith('error'):
+                    await self._log(f'A axis reset skipped ({result})')
+                else:
+                    await self._log('A axis offset reset')
+
+            # Home each axis sequentially
+            for axis in axes.upper():
+                if axis not in 'XYZ':
+                    continue
+                await self._log(f'Homing {axis}...')
+                await self.grbl.send_command(f'$H{axis}')
+                # Wait for homing to complete (state goes Home -> Idle)
+                await self._wait_idle(timeout=30.0)
+
+            # Restore WCO: set WPos = new_MPos - saved_WCO
+            await self._wait_idle()
+            restore_parts = []
+            for axis in axes.upper():
+                if axis in 'XYZ':
+                    key = axis.lower()
+                    new_wpos = self.grbl.status.mpos[key] - saved_wco[key]
+                    restore_parts.append(f'{axis}{new_wpos:.3f}')
+
+            if restore_parts:
+                restore_cmd = 'G10 L20 P1 ' + ' '.join(restore_parts)
+                await self._send_and_log(restore_cmd)
+                await self._log(f'WCO restored')
+
+            await self._log('=== HOMING COMPLETE ===')
+            await self._report_done()
+
+        except Exception as e:
+            import traceback
+            _elog.error(f'HOMING ERROR: {e}\n{traceback.format_exc()}')
+            await self._log(f'HOMING ERROR: {e}')
+            await self._report_error(str(e))
+        finally:
+            self.running = False
+
     async def run_macro(self, name: str, **kwargs):
         """
         Run a macro from macros/{name}.py file.
@@ -888,6 +970,8 @@ class MacroEngine:
             await self._report_done()
 
         except Exception as e:
+            import traceback
+            _elog.error(f'MACRO ERROR ({name}): {e}\n{traceback.format_exc()}')
             await self._log(f'MACRO ERROR ({name}): {e}')
             await self._report_error(str(e))
         finally:

@@ -128,3 +128,52 @@ def feed_for_tool(tool_dia):
             t = (tool_dia - d1) / (d2 - d1)
             return f1 + t * (f2 - f1)
     return points[-1][1]
+
+# ============================================================
+# GRBL SETTINGS BACKUP (2026-02-03)
+# ============================================================
+# $0=6        # Step pulse time (microseconds)
+# $1=255      # Step idle delay (milliseconds)
+# $2=15       # Step port invert mask
+# $3=4        # Direction port invert mask
+# $4=0        # Step enable invert
+# $5=0        # Limit pins invert
+# $6=0        # Probe pin invert
+# $10=255     # Status report mask
+# $11=0.010   # Junction deviation (mm)
+# $12=0.010   # Arc tolerance (mm)
+# $13=0       # Report inches (0=mm)
+# $20=0       # Soft limits enable
+# $21=0       # Hard limits enable
+# $22=1       # Homing cycle enable
+# $23=0       # Homing direction invert mask
+# $24=50.000  # Homing feed rate (mm/min)
+# $25=1500.000 # Homing seek rate (mm/min)
+# $26=250     # Homing debounce (ms)
+# $27=2.000   # Homing pull-off (mm)
+# $30=24000   # Max spindle speed (RPM)
+# $31=0       # Min spindle speed (RPM)
+# $32=0       # Laser mode
+# $33=0       # Spindle PWM freq
+# $34=0       # Spindle off value
+# $35=0       # Spindle min value
+# $36=0       # Spindle max value
+# $37=0       # Stepper deenergize mask
+# $38=10      # Spindle encoder PPR
+# $39=1       # Stepper enable off delay
+# $100=160.000  # X steps/mm
+# $101=161.430  # Y steps/mm
+# $102=161.450  # Z steps/mm
+# $103=71.111   # A steps/deg
+# $110=3000.000 # X max rate (mm/min)
+# $111=3000.000 # Y max rate (mm/min)
+# $112=1500.000 # Z max rate (mm/min)
+# $113=4500.000 # A max rate (deg/min)
+# $120=300.000  # X acceleration (mm/sec^2)
+# $121=300.000  # Y acceleration (mm/sec^2)
+# $122=200.000  # Z acceleration (mm/sec^2)
+# $123=20.000   # A acceleration (deg/sec^2)
+# $130=830.000  # X max travel (mm)
+# $131=420.000  # Y max travel (mm)
+# $132=80.000   # Z max travel (mm)
+# $133=1000000.000 # A max travel (deg)

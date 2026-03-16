@@ -15,8 +15,9 @@ pitch = self.tool_diameter * PITCH_RATIO
 stepover = self.tool_diameter * STEPOVER_RATIO
 helix_radius = HELIX_START_RADIUS
 finish_stock = FINISH_STOCK
-bore_radius = self.bore_dia / 2
-feed = feed_for_tool(self.tool_diameter)
+tool_radius = self.tool_diameter / 2
+bore_radius = self.bore_dia / 2 - tool_radius  # Tool path radius (tool edge cuts at bore_dia/2)
+feed = getattr(self, 'feed_override', None) or feed_for_tool(self.tool_diameter)
 
 await self._log(f'=== BORE START: dia={self.bore_dia}mm, depth={self.depth}mm ===')
 
@@ -37,15 +38,16 @@ start_z = self.grbl.status.wpos['z']
 # Use absolute mode throughout
 await self._send_and_log('G90')
 
-# Safety retract for spindle startup
-await self._send_and_log(f'G0 Z{start_z + 2:.3f}')
 await self._send_and_log(f'M3 S{SPINDLE_RPM}')
 await asyncio.sleep(SPINDLE_WARMUP)
 
 current_z = start_z  # Track Z as we descend
 
-while current_z > start_z - self.depth:
-    level_depth = min(doc, start_z - current_z + self.depth)
+target_z_limit = start_z - self.depth  # Never go below this
+
+while current_z > target_z_limit:
+    remaining_depth = self.depth - (start_z - current_z)
+    level_depth = min(doc, remaining_depth)
     target_z = current_z - level_depth
 
     # Move to helix start position (+X from center)

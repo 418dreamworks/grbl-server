@@ -17,7 +17,7 @@ from config import DOC_RATIO, PITCH_RATIO, STEPOVER_RATIO, SPINDLE_RPM, SPINDLE_
 doc = self.tool_diameter * DOC_RATIO
 pitch = self.tool_diameter * PITCH_RATIO
 stepover = self.tool_diameter * STEPOVER_RATIO
-feed = feed_for_tool(self.tool_diameter)
+feed = getattr(self, 'feed_override', None) or feed_for_tool(self.tool_diameter)
 
 # Rapid plunge option - single pass to full depth (center already clear)
 rapid_plunge = getattr(self, 'rapid_plunge', False)

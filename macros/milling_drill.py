@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(macro_dir))
 from config import SPINDLE_RPM, SPINDLE_WARMUP, feed_for_tool
 
 peck = self.tool_diameter / 2
-feed = feed_for_tool(self.tool_diameter)
+feed = getattr(self, 'feed_override', None) or feed_for_tool(self.tool_diameter)
 
 await self._wait_idle()
 start_z = self.grbl.status.wpos['z']

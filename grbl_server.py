@@ -15,6 +15,7 @@ Usage: python3 grbl_server.py [--port 8000] [--serial /dev/ttyACM0]
 """
 
 import asyncio
+import collections
 import json
 import re
 import time
@@ -36,7 +37,21 @@ import http.server
 import socketserver
 import threading
 
+import logging
+
 from macros import MacroEngine
+
+# Error log file - persistent across restarts
+_error_logger = logging.getLogger('cnc_errors')
+_error_logger.setLevel(logging.DEBUG)
+_err_handler = logging.FileHandler('error.log')
+_err_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+_error_logger.addHandler(_err_handler)
+
+def elog(msg):
+    """Log to error.log file."""
+    _error_logger.info(msg)
+    print(f'[LOG] {msg}')
 
 # ============================================================
 # CONFIGURATION
@@ -194,6 +209,8 @@ class GrblConnection:
         self.status: MachineStatus = MachineStatus()
         self.settings: Dict[str, str] = {}
         self.response_queue: asyncio.Queue = asyncio.Queue()
+        self.stream_queue: asyncio.Queue = asyncio.Queue()  # for character-counting streamer
+        self.streaming: bool = False  # when True, ok/error go to stream_queue
         self.read_task: Optional[asyncio.Task] = None
         self.poll_task: Optional[asyncio.Task] = None
         self.broadcast_callback = None
@@ -228,11 +245,11 @@ class GrblConnection:
             await self.send_command('$$')
             await self.send_command('$#')
 
-            print(f'[GRBL] Connected to {port}')
+            elog(f'GRBL connected to {port}')
             return True
 
         except Exception as e:
-            print(f'[GRBL] Connection failed: {e}')
+            elog(f'GRBL connect failed: {e}')
             self.connected = False
             return False
 
@@ -307,12 +324,19 @@ class GrblConnection:
 
         # OK response
         if line == 'ok':
-            await self.response_queue.put(('ok', line))
+            if self.streaming:
+                await self.stream_queue.put(('ok', line))
+            else:
+                await self.response_queue.put(('ok', line))
             return
 
         # Error response
         if line.startswith('error:'):
-            await self.response_queue.put(('error', line))
+            elog(f'GRBL error: {line}')
+            if self.streaming:
+                await self.stream_queue.put(('error', line))
+            else:
+                await self.response_queue.put(('error', line))
             if self.broadcast_callback:
                 await self.broadcast_callback({'type': 'response', 'result': line})
             return
@@ -320,6 +344,7 @@ class GrblConnection:
         # Alarm
         if line.startswith('ALARM:'):
             code = line.split(':')[1] if ':' in line else '?'
+            elog(f'ALARM: {code}')
             self.status.state = 'Alarm'
             if self.broadcast_callback:
                 await self.broadcast_callback({'type': 'alarm', 'code': code})
@@ -339,7 +364,7 @@ class GrblConnection:
                 'z': float(coords[2]) if len(coords) > 2 else 0,
                 'a': float(coords[3]) if len(coords) > 3 else 0,
             }
-            print(f'[GRBL] G28 position: X{self.g28_pos["x"]} Y{self.g28_pos["y"]} Z{self.g28_pos["z"]}')
+            elog(f'G28 pos: X{self.g28_pos["x"]} Y{self.g28_pos["y"]} Z{self.g28_pos["z"]}')
             return
 
         # Settings: $N=value (already broadcast via serial_read above)
@@ -360,7 +385,10 @@ class GrblConnection:
         parts = content.split('|')
 
         if parts:
-            self.status.state = parts[0]
+            new_state = parts[0]
+            if new_state != self.status.state:
+                elog(f'State: {self.status.state} -> {new_state}')
+            self.status.state = new_state
 
         for part in parts[1:]:
             if part.startswith('MPos:'):
@@ -382,12 +410,15 @@ class GrblConnection:
             elif part.startswith('WCO:'):
                 # Work Coordinate Offset (sent periodically, cache it)
                 coords = part[4:].split(',')
-                self.wco_cached = {
+                new_wco = {
                     'x': float(coords[0]) if len(coords) > 0 else 0,
                     'y': float(coords[1]) if len(coords) > 1 else 0,
                     'z': float(coords[2]) if len(coords) > 2 else 0,
                     'a': float(coords[3]) if len(coords) > 3 else 0,
                 }
+                if new_wco != self.wco_cached:
+                    elog(f'WCO changed: X{new_wco["x"]:.3f} Y{new_wco["y"]:.3f} Z{new_wco["z"]:.3f}')
+                self.wco_cached = new_wco
                 # Recompute wpos
                 self.status.wpos = {
                     'x': self.status.mpos['x'] - self.wco_cached['x'],
@@ -483,6 +514,14 @@ class GrblConnection:
         except asyncio.TimeoutError:
             return 'error:timeout'
 
+    def send_stream_line(self, line: str) -> int:
+        """Send a G-code line for streaming (no wait). Returns bytes sent."""
+        cmd = line.strip() + '\n'
+        self.ser.write(cmd.encode('utf-8'))
+        if self.logger:
+            self.logger.log_send(line.strip())
+        return len(cmd)
+
     def send_realtime(self, data: bytes):
         """Send real-time command (no newline, no response expected)."""
         if self.connected and self.ser:
@@ -521,6 +560,11 @@ class FileStreamer:
         self.broadcast_callback = None
         self.stream_task: Optional[asyncio.Task] = None
         self.recovery_file: str = 'recovery.txt'
+        self.air_cut: bool = False
+        self.macros = None  # set by CNCServer after init
+        self.continue_event: asyncio.Event = asyncio.Event()
+        self.dist_mode: str = 'G90'  # track absolute vs relative
+        self.z_margin: float = 2.0   # mm margin from machine limits
 
     def load_file(self, filename: str, content: str):
         """Load G-code file content."""
@@ -530,8 +574,9 @@ class FileStreamer:
         self.current_line = 0
         print(f'[Streamer] Loaded {filename}: {self.total_lines} lines')
 
-    async def start(self, from_line: int = 0, skip_position_check: bool = False):
+    async def start(self, from_line: int = 0, skip_position_check: bool = False, air_cut: bool = False):
         """Start streaming from specified line."""
+        self.air_cut = air_cut
         if not self.lines:
             print('[Streamer] No file loaded')
             return False, 'No file loaded'
@@ -555,16 +600,35 @@ class FileStreamer:
             dy = abs(mpos['y'] - expected_y)
             dz = abs(mpos['z'] - expected_z)
 
-            if dx > START_POS_TOLERANCE or dy > START_POS_TOLERANCE or dz > START_POS_TOLERANCE:
-                msg = f'Start position check failed. Click ↘ rapid button first. ' \
-                      f'Expected MPos near ({expected_x:.0f}, {expected_y:.0f}, {expected_z:.0f}), ' \
-                      f'got ({mpos["x"]:.1f}, {mpos["y"]:.1f}, {mpos["z"]:.1f}).'
-                print(f'[Streamer] {msg}')
+            bad = []
+            if dx > START_POS_TOLERANCE:
+                bad.append(f'X off by {dx:.1f}mm (at {mpos["x"]:.1f}, expected {expected_x:.0f})')
+            if dy > START_POS_TOLERANCE:
+                bad.append(f'Y off by {dy:.1f}mm (at {mpos["y"]:.1f}, expected {expected_y:.0f})')
+            if dz > START_POS_TOLERANCE:
+                bad.append(f'Z off by {dz:.1f}mm (at {mpos["z"]:.1f}, expected {expected_z:.0f})')
+
+            if bad:
+                msg = f'Start position check failed. Click ↘ rapid button first. {"; ".join(bad)}'
+                elog(f'STREAMER: {msg}')
                 if self.broadcast_callback:
                     await self.broadcast_callback({
                         'type': 'file_error',
                         'line': 0,
                         'gcode': '',
+                        'error': msg,
+                    })
+                return False, msg
+
+        # Check if file has tool changes and SetZ has been run
+        if self.macros and from_line == 0:
+            has_tc = any(self._is_tool_change(l) for l in self.lines)
+            if has_tc and (not self.macros.set_z_done or self.macros.probe_work_z is None):
+                msg = 'File has tool changes — run Measure (SetZ) first.'
+                elog(f'STREAMER: {msg}')
+                if self.broadcast_callback:
+                    await self.broadcast_callback({
+                        'type': 'file_start_error',
                         'error': msg,
                     })
                 return False, msg
@@ -578,48 +642,246 @@ class FileStreamer:
         print(f'[Streamer] Started from line {self.current_line}')
         return True, 'Started'
 
+    def continue_stream(self):
+        """Signal continue after Z clamp pause."""
+        self.continue_event.set()
+
+    def _is_tool_change(self, line: str) -> bool:
+        """Check if line is a tool change command (T## M6 or M6)."""
+        upper = line.upper().strip()
+        return 'M6' in upper or 'M06' in upper
+
+    def _track_dist_mode(self, line: str):
+        """Track G90/G91 distance mode from G-code lines."""
+        upper = line.upper()
+        if 'G90' in upper and 'G91' not in upper:
+            self.dist_mode = 'G90'
+        elif 'G91' in upper:
+            self.dist_mode = 'G91'
+
+    def _check_z_limit(self, line: str) -> tuple:
+        """Check if Z move would exceed machine travel.
+        Returns (is_safe, clamped_line, message).
+        Only checks absolute mode, skips G28/G53 lines."""
+        upper = line.upper().strip()
+        # Skip G28, G53 (machine coords), and relative mode
+        if 'G28' in upper or 'G53' in upper or self.dist_mode == 'G91':
+            return True, line, ''
+        z_match = re.search(r'Z([-\d.]+)', line, re.IGNORECASE)
+        if not z_match:
+            return True, line, ''
+
+        wpos_z = float(z_match.group(1))
+        wco_z = self.grbl.wco_cached.get('z', 0)
+        mpos_z = wpos_z + wco_z
+        max_travel_z = float(self.grbl.settings.get('$132', 200))
+
+        clamped = False
+        if mpos_z > -self.z_margin:  # too high (toward home)
+            new_wpos_z = -self.z_margin - wco_z
+            msg = f'Z{wpos_z:.3f} -> MPos Z{mpos_z:.1f} exceeds top limit. Clamp to Z{new_wpos_z:.3f}?'
+            clamped = True
+        elif mpos_z < -(max_travel_z - self.z_margin):  # too low
+            new_wpos_z = -(max_travel_z - self.z_margin) - wco_z
+            msg = f'Z{wpos_z:.3f} -> MPos Z{mpos_z:.1f} exceeds bottom limit. Clamp to Z{new_wpos_z:.3f}?'
+            clamped = True
+
+        if clamped:
+            new_line = re.sub(r'Z[-\d.]+', f'Z{new_wpos_z:.3f}', line, count=1, flags=re.IGNORECASE)
+            return False, new_line, msg
+        return True, line, ''
+
+    def _prepare_line(self, line: str) -> Optional[str]:
+        """Apply air-cut transforms. Returns None to skip the line."""
+        if self.air_cut:
+            upper = line.upper().strip()
+            if any(upper.startswith(c) for c in ('M3', 'M4', 'M5', 'M7', 'M8', 'M9')):
+                return None
+            if upper.startswith('G1 ') or upper.startswith('G01 ') or upper.startswith('G1F') or upper.startswith('G01F'):
+                line = re.sub(r'\bG0*1\b', 'G0', line, count=1)
+                line = re.sub(r'\s*F[\d.]+', '', line)
+        return line
+
     async def _stream_loop(self):
-        """Main streaming loop."""
-        while self.running and self.current_line < self.total_lines:
-            if self.stop_flag:
+        """Main streaming loop using character-counting protocol."""
+        RX_BUF_SIZE = 128
+        buf_used = 0
+        # sent_lines tracks (byte_count, gcode, line_number) for each unacknowledged line
+        sent_lines = collections.deque()
+        send_idx = self.current_line  # next line to send
+
+        # Enable streaming mode on grbl connection
+        # Drain any stale responses
+        while not self.grbl.stream_queue.empty():
+            try:
+                self.grbl.stream_queue.get_nowait()
+            except:
                 break
+        self.grbl.streaming = True
 
-            if self.paused:
-                await asyncio.sleep(0.1)
-                continue
+        try:
+            while self.running and (send_idx < self.total_lines or sent_lines):
+                if self.stop_flag:
+                    break
 
-            line = self.lines[self.current_line]
+                if self.paused:
+                    await asyncio.sleep(0.1)
+                    continue
 
-            # Send command and wait for response
-            result = await self.grbl.send_command(line)
+                # --- SEND: fill GRBL buffer ---
+                while send_idx < self.total_lines and not self.stop_flag:
+                    raw = self.lines[send_idx]
 
-            if result.startswith('error'):
-                # Report error but continue (or stop based on error type)
-                if self.broadcast_callback:
-                    await self.broadcast_callback({
-                        'type': 'file_error',
-                        'line': self.current_line + 1,
-                        'gcode': line,
-                        'error': result,
-                    })
-                # For now, continue on errors (can make this configurable)
+                    # Tool change: drain buffer, run macro, then continue
+                    if self._is_tool_change(raw) and self.macros:
+                        # Wait for all pending commands to finish
+                        while sent_lines and not self.stop_flag:
+                            try:
+                                result_type, result = await asyncio.wait_for(
+                                    self.grbl.stream_queue.get(), timeout=30.0
+                                )
+                            except asyncio.TimeoutError:
+                                elog('STREAMER: Timeout draining buffer for tool change')
+                                break
+                            nbytes, gcode, line_num = sent_lines.popleft()
+                            buf_used -= nbytes
+                            self.current_line = line_num + 1
+                        # Wait for GRBL idle
+                        for _ in range(100):
+                            if self.grbl.status.state == 'Idle':
+                                break
+                            await asyncio.sleep(0.2)
+                        # Exit streaming mode so macro can use send_command
+                        self.grbl.streaming = False
+                        elog(f'STREAMER: Tool change at line {send_idx + 1}: {raw}')
+                        await self.macros.run_tool_change()
+                        # Wait for macro to finish
+                        while self.macros.running:
+                            await asyncio.sleep(0.1)
+                        # Wait for GRBL idle before resuming
+                        for _ in range(150):
+                            if self.grbl.status.state == 'Idle':
+                                break
+                            await asyncio.sleep(0.2)
+                        # Drain both queues before re-entering streaming
+                        for q in (self.grbl.stream_queue, self.grbl.response_queue):
+                            while not q.empty():
+                                try:
+                                    q.get_nowait()
+                                except:
+                                    break
+                        self.grbl.streaming = True
+                        buf_used = 0
+                        send_idx += 1
+                        self.current_line = send_idx
+                        elog(f'STREAMER: Resuming from line {send_idx + 1}')
+                        continue
 
-            # Save recovery periodically
-            if self.current_line % RECOVERY_SAVE_INTERVAL == 0:
-                self._save_recovery()
+                    line = self._prepare_line(raw)
+                    if line is None:
+                        send_idx += 1
+                        self.current_line = send_idx
+                        continue
 
-            # Broadcast progress
-            if self.broadcast_callback:
-                await self.broadcast_callback({
-                    'type': 'file_status',
-                    'filename': self.filename,
-                    'current': self.current_line + 1,
-                    'total': self.total_lines,
-                    'percent': (self.current_line + 1) / self.total_lines * 100,
-                    'current_gcode': line,
-                })
+                    # Track distance mode
+                    self._track_dist_mode(line)
 
-            self.current_line += 1
+                    # Z safety check
+                    is_safe, clamped_line, z_msg = self._check_z_limit(line)
+                    if not is_safe:
+                        # Drain buffer before pausing
+                        while sent_lines and not self.stop_flag:
+                            try:
+                                rt, rv = await asyncio.wait_for(
+                                    self.grbl.stream_queue.get(), timeout=30.0
+                                )
+                            except asyncio.TimeoutError:
+                                break
+                            nb, gc, ln = sent_lines.popleft()
+                            buf_used -= nb
+                            self.current_line = ln + 1
+                        # Wait for idle
+                        for _ in range(100):
+                            if self.grbl.status.state == 'Idle':
+                                break
+                            await asyncio.sleep(0.2)
+                        # Pause and ask user
+                        elog(f'STREAMER: Z LIMIT line {send_idx + 1}: {z_msg}')
+                        if self.broadcast_callback:
+                            await self.broadcast_callback({
+                                'type': 'macro_status',
+                                'name': 'z_clamp',
+                                'step': 1, 'total': 1,
+                                'description': f'Line {send_idx + 1}: {z_msg} Press CONTINUE to clamp.',
+                                'command': line.strip(),
+                                'waiting': True,
+                            })
+                        self.continue_event.clear()
+                        await self.continue_event.wait()
+                        if self.stop_flag:
+                            break
+                        line = clamped_line
+                        elog(f'STREAMER: Z clamped to: {line.strip()}')
+
+                    cmd_len = len(line.strip() + '\n')
+                    if buf_used + cmd_len > RX_BUF_SIZE:
+                        break  # buffer full, wait for responses
+                    nbytes = self.grbl.send_stream_line(line)
+                    buf_used += nbytes
+                    sent_lines.append((nbytes, line, send_idx))
+                    send_idx += 1
+
+                # --- RECEIVE: process one response ---
+                if sent_lines:
+                    while not self.stop_flag:
+                        try:
+                            result_type, result = await asyncio.wait_for(
+                                self.grbl.stream_queue.get(), timeout=5.0
+                            )
+                            break  # got a response
+                        except asyncio.TimeoutError:
+                            state = self.grbl.status.state
+                            # Keep waiting if machine is busy, holding, or paused
+                            if state in ('Run', 'Jog') or 'Hold' in state or 'Door' in state:
+                                continue
+                            elog(f'STREAMER: Timeout waiting for response (state={state})')
+                            self.stop_flag = True
+                            break
+                    if self.stop_flag:
+                        break
+
+                    nbytes, gcode, line_num = sent_lines.popleft()
+                    buf_used -= nbytes
+                    self.current_line = line_num + 1
+
+                    if result.startswith('error'):
+                        elog(f'GCODE ERROR line {line_num + 1}: {gcode} -> {result}')
+                        if self.broadcast_callback:
+                            await self.broadcast_callback({
+                                'type': 'file_error',
+                                'line': line_num + 1,
+                                'gcode': gcode,
+                                'error': result,
+                            })
+
+                    # Save recovery periodically
+                    if line_num % RECOVERY_SAVE_INTERVAL == 0:
+                        self._save_recovery()
+
+                    # Broadcast progress (throttle to every 5 lines for performance)
+                    if self.broadcast_callback and line_num % 5 == 0:
+                        await self.broadcast_callback({
+                            'type': 'file_status',
+                            'filename': self.filename,
+                            'current': line_num + 1,
+                            'total': self.total_lines,
+                            'percent': (line_num + 1) / self.total_lines * 100,
+                            'current_gcode': gcode,
+                        })
+                else:
+                    await asyncio.sleep(0.01)
+        finally:
+            self.grbl.streaming = False
 
         # Done
         self.running = False
@@ -887,6 +1149,7 @@ class GrblServer:
         self.macros.broadcast_callback = self.broadcast
         self.macros.notify_callback = self.send_notification
         self.macros.streamer = self.streamer  # Give macros access to loaded G-code
+        self.streamer.macros = self.macros   # Give streamer access to tool change macro
 
     async def send_notification(self, message: str):
         """Send SMS notification for user action required."""
@@ -921,6 +1184,10 @@ class GrblServer:
                     await self.handle_message(websocket, msg)
                 except json.JSONDecodeError:
                     await websocket.send(json.dumps({'type': 'error', 'message': 'Invalid JSON'}))
+                except Exception as e:
+                    elog(f'WS HANDLER ERROR: {e}')
+                    import traceback
+                    elog(traceback.format_exc())
         finally:
             self.clients.discard(websocket)
             print(f'[WS] Client disconnected ({len(self.clients)} total)')
@@ -965,6 +1232,7 @@ class GrblServer:
 
         elif msg_type == 'reset':
             self.grbl.send_realtime(b'\x18')
+            self.macros.cancel()  # Also cancel any running macro
 
         elif msg_type == 'feed_hold':
             self.grbl.send_realtime(b'!')
@@ -995,8 +1263,10 @@ class GrblServer:
             # Skip position check if resuming from middle of file
             if from_line > 0:
                 skip_check = True
-            success, error_msg = await self.streamer.start(from_line, skip_position_check=skip_check)
+            air_cut = msg.get('air_cut', False)
+            success, error_msg = await self.streamer.start(from_line, skip_position_check=skip_check, air_cut=air_cut)
             if not success:
+                elog(f'FILE START ERROR: {error_msg}')
                 await ws.send(json.dumps({'type': 'file_start_error', 'error': error_msg}))
 
         elif msg_type == 'file_pause':
@@ -1007,6 +1277,12 @@ class GrblServer:
 
         elif msg_type == 'file_stop':
             self.streamer.stop()
+
+        elif msg_type == 'home':
+            axes = msg.get('axes', 'ZXY')
+            reset_a = msg.get('reset_a', axes == 'ZXY')
+            elog(f'HOMING requested: axes={axes}')
+            asyncio.create_task(self.macros.run_homing(axes, reset_a))
 
         elif msg_type == 'macro_run':
             name = msg.get('name', '')
@@ -1020,10 +1296,12 @@ class GrblServer:
             params = {k: v for k, v in msg.items() if k not in ('type', 'name')}
             if 'tool_diameter' not in params:
                 params['tool_diameter'] = 6.35  # Default to 1/4"
+            elog(f'MACRO requested: {macro_name} params={params}')
             asyncio.create_task(self.macros.run_macro(macro_name, **params))
 
         elif msg_type == 'macro_continue':
             self.macros.continue_macro()
+            self.streamer.continue_stream()
 
         elif msg_type == 'macro_cancel':
             self.macros.cancel()
