@@ -25,8 +25,9 @@ peck_count = 0
 clearance_z = start_z  # First group starts from start_z
 
 while current_depth < self.depth:
+    lines = []
     # Rapid to clearance
-    await self._send_and_log(f'G0 Z{clearance_z:.3f}')
+    lines.append(f'G0 Z{clearance_z:.3f}')
 
     # Take up to 3 pecks
     for _ in range(3):
@@ -34,13 +35,15 @@ while current_depth < self.depth:
             break
         next_depth = min(current_depth + peck, self.depth)
         target_z = start_z - next_depth
-        await self._send_and_log(f'G1 Z{target_z:.3f} F{feed:.0f}')
-        await self._wait_idle()
+        lines.append(f'G1 Z{target_z:.3f} F{feed:.0f}')
         current_depth = next_depth
         peck_count += 1
 
     # Full retract for chip clearing
-    await self._send_and_log(f'G0 Z{start_z:.3f}')
+    lines.append(f'G0 Z{start_z:.3f}')
+
+    await self._stream_lines(lines)
+    await self._wait_idle()
     await self._log(f'Retract after peck {peck_count}, depth={current_depth:.2f}mm')
 
     # Next clearance is last depth + 0.5mm

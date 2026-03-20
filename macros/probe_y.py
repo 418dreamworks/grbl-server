@@ -6,19 +6,23 @@ total = 0.0
 r = self.tool_diameter / 2
 
 await self._log('=== Y PROBE START ===')
+await self._wait_idle()
+start_z = self.grbl.status.wpos['z']
 await self._send_and_log('G91')  # relative mode
 
 # 1. Clear probe surface
-clear = self.edge_sign * (6 + r)
+clear = self.edge_sign * (7 + r)
 await self._send_and_log(f'G0 Y{clear}')
 await self._wait_idle()
 total += clear
 
 # 2. Plunge with safety check
-await self._send_and_log('G38.3 Z-6 F100')
+await self._send_and_log('G38.3 Z-7 F100')
 await self._wait_idle()
 if self.grbl.last_probe['success']:
-    await self._send_and_log('G0 Z6')
+    await self._send_and_log('G90')
+    await self._send_and_log(f'G0 Z{start_z:.3f}')
+    await self._send_and_log('G91')
     await self._send_and_log(f'G0 Y{-total}')
     await self._send_and_log('G90')
     await self._log('ERROR: Unexpected probe contact during plunge')
@@ -26,11 +30,13 @@ if self.grbl.last_probe['success']:
 
 # 3. First probe (fast) - track displacement
 pre_y = self.grbl.status.wpos['y']
-await self._send_and_log(f'G38.3 Y{-self.edge_sign * 6} F50')
+await self._send_and_log(f'G38.3 Y{-self.edge_sign * (7 + r + 2):.3f} F50')
 await self._wait_idle()
 
 if not self.grbl.last_probe['success']:
-    await self._send_and_log('G0 Z6')
+    await self._send_and_log('G90')
+    await self._send_and_log(f'G0 Z{start_z:.3f}')
+    await self._send_and_log('G91')
     await self._send_and_log(f'G0 Y{-total}')
     await self._send_and_log('G90')
     await self._log('ERROR: No probe contact')
@@ -50,7 +56,9 @@ await self._send_and_log(f'G10 L20 P1 Y{self.edge_sign * (7 + r)}')
 # 6. Return to start (relative) - back off first to avoid rubbing on Z raise
 await self._send_and_log('G91')
 await self._send_and_log(f'G0 Y{total/5}')
-await self._send_and_log('G0 Z6')
+await self._send_and_log('G90')
+await self._send_and_log(f'G0 Z{start_z:.3f}')
+await self._send_and_log('G91')
 await self._send_and_log(f'G0 Y{-total*6/5}')
 await self._send_and_log('G90')
 

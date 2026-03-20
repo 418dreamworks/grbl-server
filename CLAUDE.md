@@ -1,5 +1,11 @@
 # Claude Code Rules for nedjrbrains
 
+## MANDATORY — Read These Files Before Any Work
+You MUST read these two files at the start of EVERY conversation, before making ANY edits:
+1. `~/.claude/projects/-home-tzuohann-Documents-grbl-server/memory/feedback_custom_step_safety.md`
+2. `~/.claude/projects/-home-tzuohann-Documents-grbl-server/memory/feedback_no_deploy_while_running.md`
+These contain safety-critical rules learned from incidents. No exceptions.
+
 ## Deployment
 
 **Local deploy** (running on same machine as controller):

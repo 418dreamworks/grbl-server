@@ -417,7 +417,7 @@ class GrblConnection:
                     'a': float(coords[3]) if len(coords) > 3 else 0,
                 }
                 if new_wco != self.wco_cached:
-                    elog(f'WCO changed: X{new_wco["x"]:.3f} Y{new_wco["y"]:.3f} Z{new_wco["z"]:.3f}')
+                    elog(f'WCO changed: X{new_wco["x"]:.3f} Y{new_wco["y"]:.3f} Z{new_wco["z"]:.3f} A{new_wco.get("a", 0):.3f}')
                 self.wco_cached = new_wco
                 # Recompute wpos
                 self.status.wpos = {
@@ -510,6 +510,17 @@ class GrblConnection:
                 self.response_queue.get(),
                 timeout=timeout
             )
+            # Re-read stored positions after G28.1/G30.1 or G10 (WCO change)
+            if line.strip().upper() in ('G28.1', 'G30.1') or line.strip().upper().startswith('G10'):
+                await asyncio.sleep(0.1)
+                await self.send_command('$#')
+            # After $ setting change: update cache and soft-reset GRBL to flush EEPROM
+            if line.strip().startswith('$') and '=' in line:
+                key, value = line.strip().split('=', 1)
+                self.settings[key] = value
+                await asyncio.sleep(0.2)
+                self.send_realtime(b'\x18')  # Soft reset
+                await asyncio.sleep(1.0)  # Wait for GRBL to reboot
             return result
         except asyncio.TimeoutError:
             return 'error:timeout'
@@ -569,7 +580,7 @@ class FileStreamer:
     def load_file(self, filename: str, content: str):
         """Load G-code file content."""
         self.filename = filename
-        self.lines = [l.strip() for l in content.split('\n') if l.strip() and not l.strip().startswith(';')]
+        self.lines = [l.strip() for l in content.split('\n')]
         self.total_lines = len(self.lines)
         self.current_line = 0
         print(f'[Streamer] Loaded {filename}: {self.total_lines} lines')
@@ -577,12 +588,14 @@ class FileStreamer:
     async def start(self, from_line: int = 0, skip_position_check: bool = False, air_cut: bool = False):
         """Start streaming from specified line."""
         self.air_cut = air_cut
+        if self.macros:
+            self.macros.air_cut = air_cut
         if not self.lines:
             print('[Streamer] No file loaded')
             return False, 'No file loaded'
 
         # Check start position (machine must be at bottom-right corner - rapid ↘ button)
-        if not skip_position_check and from_line == 0:
+        if not skip_position_check and from_line <= 1:
             mpos = self.grbl.status.mpos
 
             # Get work area size from GRBL settings
@@ -621,8 +634,8 @@ class FileStreamer:
                 return False, msg
 
         # Check if file has tool changes and SetZ has been run
-        if self.macros and from_line == 0:
-            has_tc = any(self._is_tool_change(l) for l in self.lines)
+        if self.macros:
+            has_tc = any(self._is_tool_change(l) for l in self.lines[max(0, from_line - 1):])
             if has_tc and (not self.macros.set_z_done or self.macros.probe_work_z is None):
                 msg = 'File has tool changes — run Measure (SetZ) first.'
                 elog(f'STREAMER: {msg}')
@@ -633,14 +646,138 @@ class FileStreamer:
                     })
                 return False, msg
 
-        self.current_line = max(0, from_line)
+        self.current_line = max(0, from_line - 1)  # Convert 1-indexed UI line to 0-indexed array
         self.running = True
         self.paused = False
         self.stop_flag = False
 
+        # Clear stale state and set modal preamble when resuming mid-file
+        if from_line > 1:
+            # Unlock if in alarm
+            if self.grbl.status.state == 'Alarm':
+                await self.grbl.send_command('$X')
+                await asyncio.sleep(0.5)
+            # Resume from hold if needed
+            if 'Hold' in self.grbl.status.state:
+                self.grbl.send_realtime(b'~')
+                await asyncio.sleep(0.5)
+            # Drain stale queues
+            for q in (self.grbl.response_queue, self.grbl.stream_queue):
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except:
+                        break
+            # Set modal state — run through air cut filter
+            preamble = self._build_preamble(from_line)
+            if preamble:
+                for cmd in preamble:
+                    filtered = self._prepare_line(cmd)
+                    if filtered is None:
+                        elog(f'STREAMER: Preamble (skipped by air cut): {cmd}')
+                        continue
+                    elog(f'STREAMER: Preamble: {filtered}')
+                    await self.grbl.send_command(filtered)
+
         self.stream_task = asyncio.create_task(self._stream_loop())
-        print(f'[Streamer] Started from line {self.current_line}')
+        elog(f'STREAMER: Started {self.filename} from line {self.current_line}/{self.total_lines}')
         return True, 'Started'
+
+    def _build_preamble(self, from_line: int) -> list:
+        """Scan lines 0..from_line to extract modal state and position for mid-file resume.
+        Returns G-code commands to restore state, move to position, and plunge to Z."""
+        dist_mode = 'G90'
+        plane = 'G17'
+        feed = None
+        spindle = None
+        spindle_mode = None  # M3, M4, or M5
+        coord_sys = 'G54'
+        motion_mode = 'G0'
+        x = None
+        y = None
+        z = None
+        a = None
+
+        for i in range(min(from_line - 1, len(self.lines))):
+            upper = self.lines[i].upper().strip()
+            if not upper or upper.startswith('(') or upper.startswith('%'):
+                continue
+            # Skip tracking position for G28 moves (machine coordinates)
+            if 'G28' in upper:
+                continue
+            if 'G90' in upper and 'G91' not in upper:
+                dist_mode = 'G90'
+            elif 'G91' in upper:
+                dist_mode = 'G91'
+            if 'G17' in upper:
+                plane = 'G17'
+            elif 'G18' in upper:
+                plane = 'G18'
+            elif 'G19' in upper:
+                plane = 'G19'
+            for cs in ('G54', 'G55', 'G56', 'G57', 'G58', 'G59'):
+                if cs in upper:
+                    coord_sys = cs
+            m = re.search(r'F([\d.]+)', upper)
+            if m:
+                feed = f'F{m.group(1)}'
+            m = re.search(r'S(\d+)', upper)
+            if m:
+                spindle = m.group(1)
+            for gm in ('G0', 'G1', 'G2', 'G3'):
+                if re.search(r'\b' + gm + r'\b', upper):
+                    motion_mode = gm
+            if 'M3' in upper:
+                spindle_mode = 'M3'
+            elif 'M4' in upper:
+                spindle_mode = 'M4'
+            elif 'M5' in upper:
+                spindle_mode = 'M5'
+            # Track absolute positions (only in G90 mode)
+            if dist_mode == 'G90':
+                m = re.search(r'X([-\d.]+)', upper)
+                if m:
+                    x = float(m.group(1))
+                m = re.search(r'Y([-\d.]+)', upper)
+                if m:
+                    y = float(m.group(1))
+                m = re.search(r'Z([-\d.]+)', upper)
+                if m:
+                    z = float(m.group(1))
+                m = re.search(r'A([-\d.]+)', upper)
+                if m:
+                    a = float(m.group(1))
+
+        cmds = []
+        # 1. Set modal state
+        cmds.append(f'G90 {plane}')
+        cmds.append(coord_sys)
+        # 2. Spindle on (before moving so it's up to speed)
+        if spindle_mode in ('M3', 'M4') and spindle:
+            cmds.append(f'{spindle_mode} S{spindle}')
+        # 3. Set feed rate
+        if feed:
+            cmds.append(f'G1 {feed}')
+        # 4. Move to position (rapid, safe at current Z)
+        if a is not None:
+            cmds.append(f'G0 A{a:.3f}')
+        xy_parts = []
+        if x is not None:
+            xy_parts.append(f'X{x:.3f}')
+        if y is not None:
+            xy_parts.append(f'Y{y:.3f}')
+        if xy_parts:
+            cmds.append(f'G0 {" ".join(xy_parts)}')
+        # 5. Plunge to Z (rapid to last known Z)
+        if z is not None:
+            cmds.append(f'G0 Z{z:.3f}')
+        # 6. Restore motion mode (only G1 — G2/G3 need arc params)
+        if motion_mode == 'G1' and feed:
+            cmds.append(f'G1 {feed}')
+        # 7. Restore distance mode if it was G91
+        if dist_mode == 'G91':
+            cmds.append('G91')
+        return cmds
 
     def continue_stream(self):
         """Signal continue after Z clamp pause."""
@@ -692,14 +829,39 @@ class FileStreamer:
         return True, line, ''
 
     def _prepare_line(self, line: str) -> Optional[str]:
-        """Apply air-cut transforms. Returns None to skip the line."""
+        """Apply transforms. G28 replaced with G53 G0 XYZ (no A). Air-cut strips Z/spindle."""
+        # Replace G28 with G53 G0 for only the specified axes (no A)
+        upper = line.upper().strip()
+        if 'G28' in upper and 'G28.1' not in upper and 'G28.3' not in upper:
+            g28 = self.grbl.g28_pos
+            parts = []
+            if 'X' in upper:
+                parts.append(f'X{g28["x"]:.3f}')
+            if 'Y' in upper:
+                parts.append(f'Y{g28["y"]:.3f}')
+            if 'Z' in upper:
+                parts.append(f'Z{g28["z"]:.3f}')
+            if parts:
+                return 'G53 G0 ' + ' '.join(parts)
+            return None
         if self.air_cut:
             upper = line.upper().strip()
-            if any(upper.startswith(c) for c in ('M3', 'M4', 'M5', 'M7', 'M8', 'M9')):
+            # Skip spindle/coolant
+            if any(c in upper for c in ('M3', 'M4', 'M5', 'M7', 'M8', 'M9')) or upper.startswith('S'):
                 return None
-            if upper.startswith('G1 ') or upper.startswith('G01 ') or upper.startswith('G1F') or upper.startswith('G01F'):
-                line = re.sub(r'\bG0*1\b', 'G0', line, count=1)
-                line = re.sub(r'\s*F[\d.]+', '', line)
+            # Skip G19/G18 plane arcs (YZ/XZ — meaningless without Z)
+            if 'G19' in upper or 'G18' in upper:
+                return None
+            # Strip Z, K (helical arc component), feed rate
+            line = re.sub(r'Z[-\d.]+', '', line, flags=re.IGNORECASE)
+            line = re.sub(r'K[-\d.]+', '', line, flags=re.IGNORECASE)
+            line = re.sub(r'F[\d.]+', '', line, flags=re.IGNORECASE)
+            # Convert G1 to G0 (rapid)
+            line = re.sub(r'\bG0*1\b', 'G0', line)
+            line = line.strip()
+            # Skip if nothing useful left
+            if not line or line == 'G0' or line == 'G17':
+                return None
         return line
 
     async def _stream_loop(self):
@@ -709,6 +871,7 @@ class FileStreamer:
         # sent_lines tracks (byte_count, gcode, line_number) for each unacknowledged line
         sent_lines = collections.deque()
         send_idx = self.current_line  # next line to send
+        z_clamp_approved = False  # once user approves, auto-clamp all subsequent
 
         # Enable streaming mode on grbl connection
         # Drain any stale responses
@@ -731,6 +894,12 @@ class FileStreamer:
                 # --- SEND: fill GRBL buffer ---
                 while send_idx < self.total_lines and not self.stop_flag:
                     raw = self.lines[send_idx]
+
+                    # Skip empty lines and comments
+                    if not raw or raw.startswith(';') or raw.startswith('('):
+                        send_idx += 1
+                        self.current_line = send_idx
+                        continue
 
                     # Tool change: drain buffer, run macro, then continue
                     if self._is_tool_change(raw) and self.macros:
@@ -763,6 +932,8 @@ class FileStreamer:
                             if self.grbl.status.state == 'Idle':
                                 break
                             await asyncio.sleep(0.2)
+                        # Refresh WCO after tool change (tool offset changes Z WCO)
+                        await self.grbl.send_command('$#')
                         # Drain both queues before re-entering streaming
                         for q in (self.grbl.stream_queue, self.grbl.response_queue):
                             while not q.empty():
@@ -789,39 +960,39 @@ class FileStreamer:
                     # Z safety check
                     is_safe, clamped_line, z_msg = self._check_z_limit(line)
                     if not is_safe:
-                        # Drain buffer before pausing
-                        while sent_lines and not self.stop_flag:
-                            try:
-                                rt, rv = await asyncio.wait_for(
-                                    self.grbl.stream_queue.get(), timeout=30.0
-                                )
-                            except asyncio.TimeoutError:
+                        if not z_clamp_approved:
+                            # First occurrence: drain buffer and ask user
+                            while sent_lines and not self.stop_flag:
+                                try:
+                                    rt, rv = await asyncio.wait_for(
+                                        self.grbl.stream_queue.get(), timeout=30.0
+                                    )
+                                except asyncio.TimeoutError:
+                                    break
+                                nb, gc, ln = sent_lines.popleft()
+                                buf_used -= nb
+                                self.current_line = ln + 1
+                            for _ in range(100):
+                                if self.grbl.status.state == 'Idle':
+                                    break
+                                await asyncio.sleep(0.2)
+                            elog(f'STREAMER: Z LIMIT line {send_idx + 1}: {z_msg}')
+                            if self.broadcast_callback:
+                                await self.broadcast_callback({
+                                    'type': 'macro_status',
+                                    'name': 'z_clamp',
+                                    'step': 1, 'total': 1,
+                                    'description': f'Line {send_idx + 1}: {z_msg} Press CONTINUE to auto-clamp all.',
+                                    'command': line.strip(),
+                                    'waiting': True,
+                                })
+                            self.continue_event.clear()
+                            await self.continue_event.wait()
+                            if self.stop_flag:
                                 break
-                            nb, gc, ln = sent_lines.popleft()
-                            buf_used -= nb
-                            self.current_line = ln + 1
-                        # Wait for idle
-                        for _ in range(100):
-                            if self.grbl.status.state == 'Idle':
-                                break
-                            await asyncio.sleep(0.2)
-                        # Pause and ask user
-                        elog(f'STREAMER: Z LIMIT line {send_idx + 1}: {z_msg}')
-                        if self.broadcast_callback:
-                            await self.broadcast_callback({
-                                'type': 'macro_status',
-                                'name': 'z_clamp',
-                                'step': 1, 'total': 1,
-                                'description': f'Line {send_idx + 1}: {z_msg} Press CONTINUE to clamp.',
-                                'command': line.strip(),
-                                'waiting': True,
-                            })
-                        self.continue_event.clear()
-                        await self.continue_event.wait()
-                        if self.stop_flag:
-                            break
+                            z_clamp_approved = True
                         line = clamped_line
-                        elog(f'STREAMER: Z clamped to: {line.strip()}')
+                        elog(f'STREAMER: Z clamped line {send_idx + 1}')
 
                     cmd_len = len(line.strip() + '\n')
                     if buf_used + cmd_len > RX_BUF_SIZE:
@@ -888,7 +1059,7 @@ class FileStreamer:
         self._save_recovery()
 
         if self.current_line >= self.total_lines and not self.stop_flag:
-            print(f'[Streamer] Completed {self.filename}')
+            elog(f'STREAMER: Completed {self.filename}')
 
             # Return to home position (Z first, then XY)
             print('[Streamer] Returning to home position...')
@@ -950,20 +1121,24 @@ class FileStreamer:
     def pause(self):
         """Pause streaming."""
         self.paused = True
-        print('[Streamer] Paused')
+        elog('STREAMER: Paused')
 
     def resume(self):
         """Resume streaming."""
         self.paused = False
-        print('[Streamer] Resumed')
+        elog('STREAMER: Resumed')
 
     def stop(self):
         """Stop streaming."""
         self.stop_flag = True
         self.running = False
         self.paused = False
+        self.air_cut = False
+        if self.macros:
+            self.macros.air_cut = False
+        self.continue_event.set()  # unblock any waiting Z clamp
         self._save_recovery()
-        print('[Streamer] Stopped')
+        elog('STREAMER: Stopped')
 
     def analyze(self) -> Dict[str, Any]:
         """Analyze loaded G-code for feed rates, plunge rates, and spindle speeds."""
@@ -1195,6 +1370,10 @@ class GrblServer:
     async def handle_message(self, ws, msg: Dict[str, Any]):
         """Route incoming WebSocket message."""
         msg_type = msg.get('type', '')
+        # Log all user actions
+        if msg_type not in ('settings',):  # skip noisy polling
+            details = {k: v for k, v in msg.items() if k != 'type' and k != 'content'}
+            elog(f'UI: {msg_type} {details if details else ""}')
 
         if msg_type == 'connect':
             port = msg.get('port', self.serial_port)
@@ -1231,8 +1410,15 @@ class GrblServer:
             await self.grbl.send_command('$X')
 
         elif msg_type == 'reset':
+            saved_wco = dict(self.grbl.wco_cached)
             self.grbl.send_realtime(b'\x18')
-            self.macros.cancel()  # Also cancel any running macro
+            self.macros.cancel()
+            await asyncio.sleep(1.5)
+            await self.grbl.send_command('$X')
+            await asyncio.sleep(0.3)
+            mpos = self.grbl.status.mpos
+            await self.grbl.send_command(f'G10 L20 P1 X{mpos["x"] - saved_wco["x"]:.3f} Y{mpos["y"] - saved_wco["y"]:.3f} Z{mpos["z"] - saved_wco["z"]:.3f} A{mpos["a"] - saved_wco["a"]:.3f}')
+            elog(f'RESET: Coordinates restored (WCO X{saved_wco["x"]:.3f} Y{saved_wco["y"]:.3f} Z{saved_wco["z"]:.3f})')
 
         elif msg_type == 'feed_hold':
             self.grbl.send_realtime(b'!')
@@ -1261,7 +1447,7 @@ class GrblServer:
             from_line = msg.get('from_line', 0)
             skip_check = msg.get('skip_position_check', False)
             # Skip position check if resuming from middle of file
-            if from_line > 0:
+            if from_line > 1:
                 skip_check = True
             air_cut = msg.get('air_cut', False)
             success, error_msg = await self.streamer.start(from_line, skip_position_check=skip_check, air_cut=air_cut)
@@ -1277,6 +1463,26 @@ class GrblServer:
 
         elif msg_type == 'file_stop':
             self.streamer.stop()
+            # Save WCO before any reset wipes it
+            saved_wco = dict(self.grbl.wco_cached)
+            # Wait for hold to complete
+            for _ in range(50):
+                if self.grbl.status.state in ('Idle', 'Hold:0'):
+                    break
+                await asyncio.sleep(0.1)
+            # Soft reset to flush GRBL buffer
+            self.grbl.send_realtime(b'\x18')
+            await asyncio.sleep(1.5)
+            # Unlock
+            await self.grbl.send_command('$X')
+            await asyncio.sleep(0.3)
+            # Restore coordinates using saved WCO
+            mpos = self.grbl.status.mpos
+            await self.grbl.send_command(f'G10 L20 P1 X{mpos["x"] - saved_wco["x"]:.3f} Y{mpos["y"] - saved_wco["y"]:.3f} Z{mpos["z"] - saved_wco["z"]:.3f} A{mpos["a"] - saved_wco["a"]:.3f}')
+            elog(f'STREAMER: Stop - coordinates restored (WCO X{saved_wco["x"]:.3f} Y{saved_wco["y"]:.3f} Z{saved_wco["z"]:.3f})')
+            # Spindle off and raise Z to top
+            await self.grbl.send_command('M5')
+            await self.grbl.send_command('G53 G0 Z-2')
 
         elif msg_type == 'home':
             axes = msg.get('axes', 'ZXY')

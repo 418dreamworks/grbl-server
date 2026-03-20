@@ -56,6 +56,9 @@ class MacroEngine:
         # Streamer reference (set by CNCServer for access to loaded G-code)
         self.streamer = None
 
+        # Air cut mode — when True, all spindle/coolant commands are skipped
+        self.air_cut: bool = False
+
         # Fixtures list: [{x, y, z, radius}, ...]
         self.fixtures: list = []
 
@@ -227,6 +230,15 @@ class MacroEngine:
 
         except Exception as e:
             await self._log(f'SET_Z ERROR: {e}')
+            try:
+                await self._send_and_log('G90')
+                await self._send_and_log('G53 G0 Z-1')
+                await self._wait_idle()
+                await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
+                await self._wait_idle()
+                await self._log('Returned to start after error')
+            except:
+                pass
             await self._report_error(str(e))
         finally:
             self.running = False
@@ -373,6 +385,15 @@ class MacroEngine:
 
         except Exception as e:
             await self._log(f'TOOL_CHANGE ERROR: {e}')
+            try:
+                await self._send_and_log('G90')
+                await self._send_and_log('G53 G0 Z-1')
+                await self._wait_idle()
+                await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
+                await self._wait_idle()
+                await self._log('Returned to start after error')
+            except:
+                pass
             await self._report_error(str(e))
         finally:
             self.running = False
@@ -707,11 +728,75 @@ class MacroEngine:
             })
 
     async def _send_and_log(self, gcode: str):
-        """Send G-code command and log it."""
+        """Send G-code command and log it. Skips spindle/coolant in air cut mode."""
         if self.cancel_flag:
             raise Exception('Macro cancelled')
+        if self.air_cut:
+            upper = gcode.upper().strip()
+            if any(c in upper for c in ('M3', 'M4', 'M5', 'M7', 'M8', 'M9')) or upper.startswith('S'):
+                await self._log(f'> {gcode} (skipped - air cut)')
+                return
         await self._log(f'> {gcode}')
         await self.grbl.send_command(gcode)
+
+    async def _stream_lines(self, lines: list):
+        """Stream G-code lines using character-counting protocol for smooth motion."""
+        import collections
+        RX_BUF_SIZE = 128
+        buf_used = 0
+        sent_lines = collections.deque()
+        send_idx = 0
+
+        # Drain stale responses and enable streaming mode
+        while not self.grbl.stream_queue.empty():
+            try:
+                self.grbl.stream_queue.get_nowait()
+            except:
+                break
+        self.grbl.streaming = True
+
+        try:
+            while send_idx < len(lines) or sent_lines:
+                if self.cancel_flag:
+                    break
+
+                # --- SEND: fill GRBL buffer ---
+                while send_idx < len(lines) and not self.cancel_flag:
+                    line = lines[send_idx].strip()
+                    if not line:
+                        send_idx += 1
+                        continue
+                    cmd_len = len(line + '\n')
+                    if buf_used + cmd_len > RX_BUF_SIZE:
+                        break  # buffer full
+                    nbytes = self.grbl.send_stream_line(line)
+                    buf_used += nbytes
+                    sent_lines.append((nbytes, line))
+                    send_idx += 1
+
+                # --- RECEIVE: process one response ---
+                if sent_lines:
+                    try:
+                        result_type, result = await asyncio.wait_for(
+                            self.grbl.stream_queue.get(), timeout=10.0
+                        )
+                    except asyncio.TimeoutError:
+                        await self._log('STREAM: Timeout waiting for response')
+                        break
+                    nbytes, gcode = sent_lines.popleft()
+                    buf_used -= nbytes
+                    if 'error' in str(result):
+                        await self._log(f'STREAM ERROR: {result} (cmd: {gcode})')
+                        break
+        finally:
+            # Drain remaining responses
+            while sent_lines:
+                try:
+                    await asyncio.wait_for(self.grbl.stream_queue.get(), timeout=5.0)
+                    sent_lines.popleft()
+                except:
+                    break
+            self.grbl.streaming = False
 
     async def _get_distance_mode(self) -> str:
         """Query current distance mode (G90 absolute or G91 relative)."""

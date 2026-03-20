@@ -14,12 +14,12 @@ await self._send_and_log('G91')
 await self._send_and_log('G38.2 Z-11 F50')
 await self._wait_idle()
 
-# Back off 2.5mm
-await self._send_and_log('G0 Z2.5')
+# Back off 1mm
+await self._send_and_log('G0 Z1')
 await self._wait_idle()
 
-# Second probe: medium (F10), max 3mm down
-await self._send_and_log('G38.2 Z-3 F10')
+# Second probe: medium (F10), max 1.5mm down
+await self._send_and_log('G38.2 Z-1.5 F10')
 await self._wait_idle()
 
 # Calculate displacement from start to probe contact

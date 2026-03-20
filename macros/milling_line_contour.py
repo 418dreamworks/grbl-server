@@ -40,55 +40,54 @@ await self._log('Ramping to depth...')
 remaining_depth = self.depth
 at_end = False
 
+ramp_lines = []
 while remaining_depth > 0:
     descend = min(ramp_increment, remaining_depth)
     remaining_depth -= descend
 
     if at_end:
-        # Cut back to start while descending
-        await self._send_and_log(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} Z{-descend:.3f} F{feed:.0f}')
+        ramp_lines.append(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} Z{-descend:.3f} F{feed:.0f}')
         at_end = False
     else:
-        # Cut to end while descending
-        await self._send_and_log(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} Z{-descend:.3f} F{feed:.0f}')
+        ramp_lines.append(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} Z{-descend:.3f} F{feed:.0f}')
         at_end = True
-    await self._wait_idle()
 
 # Cleanup pass at full depth (no Z change)
 if at_end:
-    await self._send_and_log(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} F{feed:.0f}')
+    ramp_lines.append(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} F{feed:.0f}')
     at_end = False
 else:
-    await self._send_and_log(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} F{feed:.0f}')
+    ramp_lines.append(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} F{feed:.0f}')
     at_end = True
+
+await self._stream_lines(ramp_lines)
 await self._wait_idle()
 
 # Phase 2: Zigzag to cover width (perpendicular steps)
-# Track total perpendicular displacement for return
 total_perp_x = 0
 total_perp_y = 0
 covered = 0
+zigzag_lines = []
 
 while covered < self.width:
     step = min(stepover, self.width - covered)
     step_x = perp_unit_x * step
     step_y = perp_unit_y * step
 
-    # Step perpendicular
-    await self._send_and_log(f'G1 X{step_x:.3f} Y{step_y:.3f} F{feed:.0f}')
-    await self._wait_idle()
+    zigzag_lines.append(f'G1 X{step_x:.3f} Y{step_y:.3f} F{feed:.0f}')
     total_perp_x += step_x
     total_perp_y += step_y
     covered += step
 
-    # Cut along line
     if at_end:
-        await self._send_and_log(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} F{feed:.0f}')
+        zigzag_lines.append(f'G1 X{-self.end_x:.3f} Y{-self.end_y:.3f} F{feed:.0f}')
         at_end = False
     else:
-        await self._send_and_log(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} F{feed:.0f}')
+        zigzag_lines.append(f'G1 X{self.end_x:.3f} Y{self.end_y:.3f} F{feed:.0f}')
         at_end = True
-    await self._wait_idle()
+
+await self._stream_lines(zigzag_lines)
+await self._wait_idle()
 
 # Return to start position
 await self._send_and_log('M5')

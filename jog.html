@@ -47,6 +47,8 @@
         .z-buttons button { background: #2a4a2a; border-color: #3a6a3a; }
         .work-zero button { background: #4a2a2a; border-color: #6a3a3a; }
         .xy-grid button { background: #2a2a4a; border-color: #3a3a6a; padding: 10px; }
+        @keyframes dangerFlash { 0%,100% { background: #6a2a3a; } 50% { background: #3a1a2a; } }
+        .jog-danger { animation: dangerFlash 0.8s infinite !important; border-color: #8a3a4a !important; }
         .xy-grid button.work-zero { background: #4a2a2a; border-color: #6a3a3a; }
         .tool-buttons button { background: #4a4a2a; border-color: #6a6a3a; }
         .job-ctrl button { background: #2a4a4a; border-color: #3a6a6a; }
@@ -63,7 +65,7 @@
         .jog-grid button { padding: 12px 20px; font-size: 14px; }
         .step-selector .step-label, .spindle-ctrl .step-label { font-size: 12px; color: #888; margin-bottom: 4px; text-align: center; }
         .step-selector .step-btn { padding: 12px 10px; font-size: 12px; flex: 1; text-align: center; }
-        .step-selector .step-btn.active { background: #4a6a4a; border-color: #6a8a6a; }
+        .step-selector .step-btn.active, .step-btn.active { background: #4a6a4a !important; border-color: #6a8a6a !important; }
         .spindle-on { background: #2a4a2a !important; border-color: #3a6a3a !important; }
         .spindle-off { background: #4a2a2a !important; border-color: #6a3a3a !important; }
         .spindle-speed-btn { padding: 2px 8px !important; min-width: 30px !important; font-size: 10px !important; }
@@ -447,7 +449,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.158</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.187</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -541,11 +543,13 @@
                 <button onclick="gotoXY(workMaxX/2, workMaxY-MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2193;</span></button>
                 <button onclick="gotoXY(MARGIN, workMaxY-MARGIN)" style="min-height:49px;"><span style="font-size:20px">&#x2198;</span></button>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
-                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 X0 Y0')">X0 Y0</button>
-                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 Z0')">Z0</button>
-                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px;" onclick="cmd('G54 G0 Z10')">Z10</button>
-                <button style="background:#6a2a2a; border-color:#8a3a3a; min-height:49px;" onclick="cmd('G53 G0 Z-2')" title="Raise Z to near machine home (MPos Z=-2)">Z Top</button>
+            <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;">
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 X0 Y0')">X0Y0</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 X0')">X0</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Y0')">Y0</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Z0')">Z0</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Z10')">Z10</button>
+                <button style="background:#6a2a2a; border-color:#8a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G53 G0 Z-2')" title="Raise Z to near machine home (MPos Z=-2)">Z Top</button>
             </div>
             <!-- JOG -->
             <div style="font-size:14.5px; color:#888; text-align:center; margin-top:20px;">JOG</div>
@@ -567,6 +571,26 @@
                     <button class="step-btn" onclick="setStep(0.25, this)" style="padding:12px 8px; font-size:12px; flex:1;">0.25</button>
                     <button class="step-btn active" onclick="setStep(2.5, this)" style="padding:12px 8px; font-size:12px; flex:1;">2.5</button>
                     <button class="step-btn" onclick="setStep(25, this)" style="padding:12px 8px; font-size:12px; flex:1;">25</button>
+                </div>
+            </div>
+            <!-- JOG FEED -->
+            <div style="display: flex; gap: 4px; margin-top: 4px; align-items: stretch;">
+                <button id="btnJogRapid" class="step-btn active" onclick="setJogFeed('rapid')" style="padding:8px; font-size:12px; flex:1;">Rapid</button>
+                <div style="flex:1; display:flex; flex-direction:column; gap:2px;" onclick="setJogFeed('slow')">
+                    <div style="display:flex; align-items:center; gap:2px; flex:1;">
+                        <span style="font-size:10px; color:#888; width:12px;">F</span>
+                        <input type="text" id="jogFeedInput" class="step-btn" onclick="setJogFeed('slow'); this.select();"
+                               onchange="var v=parseFloat(this.value); if(!isNaN(v)&&v>0){jogSlowFeed=currentUnit==='in'?v*25.4:v; localStorage.setItem('jogSlowFeed',jogSlowFeed);}"
+                               onkeydown="event.stopPropagation();"
+                               style="padding:4px; font-size:11px; flex:1; text-align:center; background:#333; color:#fff; border:1px solid #555; border-radius:4px; width:0; min-width:0;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:2px; flex:1;">
+                        <span style="font-size:10px; color:#888; width:12px;">P</span>
+                        <input type="text" id="jogPlungeInput" class="step-btn" onclick="setJogFeed('slow'); this.select();"
+                               onchange="var v=parseFloat(this.value); if(!isNaN(v)&&v>0){jogSlowPlunge=currentUnit==='in'?v*25.4:v; localStorage.setItem('jogSlowPlunge',jogSlowPlunge);}"
+                               onkeydown="event.stopPropagation();"
+                               style="padding:4px; font-size:11px; flex:1; text-align:center; background:#333; color:#fff; border:1px solid #555; border-radius:4px; width:0; min-width:0;">
+                    </div>
                 </div>
             </div>
             <!-- PROBE -->
@@ -596,7 +620,8 @@
                     <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">ROTARY</div>
                     <div style="display: flex; gap: 4px;">
                         <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_chuck')" title="Find chuck center. Probes X, Y, Z edges, then applies chuck offsets (X-50, Y-20, Z+26) so (0,0,0) = chuck centerline.">Chuck Find</button>
-                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_tailstock')" title="Check tailstock alignment. Probes tailstock to verify it's aligned with chuck center.">Tailstock</button>
+                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="showToolDiaModal('rotary_parallel')" title="Parallel check. Probes Y at two X positions 50mm apart.">Parallel</button>
+
                         <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" onclick="startRotaryTurning()" title="Rotary turning cycle. Cuts from start diameter to end diameter between X positions, with helical plunge and springback passes.">Turning</button>
                     </div>
                 </div>
@@ -636,78 +661,46 @@
             <button id="btnViewCamera" onclick="showView('camera')" style="flex: 1; padding: 6px; font-size: 12px; background: #2a4a2a; border-color: #3a6a3a;">Camera</button>
             <button id="btnViewGcode" onclick="showView('gcode')" style="flex: 1; padding: 6px; font-size: 12px;">G-code</button>
             <button id="btnViewFixtures" onclick="showView('fixtures')" style="flex: 1; padding: 6px; font-size: 12px;">Fixtures</button>
+            <button id="btnViewConsole" onclick="showView('console')" style="flex: 1; padding: 6px; font-size: 12px;">Console</button>
         </div>
         <div class="section" style="flex: 1; position: relative;">
             <div class="camera" id="camera" style="height: 100%;">
                 <span>No camera feed</span>
             </div>
-            <div id="gcodeViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow-y: auto; font-family: monospace; font-size: 12px; padding: 8px;">
+            <div id="gcodeViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow-y: auto; font-family: monospace; font-size: 12px; padding: 8px;"><span style="color:#666;">No file loaded</span>
             </div>
             <div id="fixturesViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow: hidden;">
                 <canvas id="fixturesCanvas" style="width: 100%; height: 100%;"></canvas>
             </div>
+            <div id="consoleViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow: hidden; flex-direction: column;">
+                <div style="display: flex; align-items: center; padding: 4px 8px; border-bottom: 1px solid #333; flex-shrink: 0;">
+                    <input type="text" id="gcodeInput" placeholder="G-code..."
+                           style="flex: 1; padding: 4px 8px; background: #222; border: 1px solid #444;
+                                  border-radius: 4px; color: #fff; font-family: monospace; font-size: 12px;"
+                           onkeydown="handleGcodeKeydown(event)">
+                    <button onclick="sendGcodeInput()" style="padding: 4px 12px; font-size: 11px; margin-left: 4px;">Send</button>
+                    <button onclick="clearDebugLog()" style="padding: 4px 8px; font-size: 11px; margin-left: 4px;">Clear</button>
+                    <button id="btnAutoScroll" onclick="toggleAutoScroll()" style="padding: 4px 8px; font-size: 11px; margin-left: 4px; background: #2a4a2a; border-color: #3a6a3a;">Auto</button>
+                    <button onclick="copyDebugLog(this)" style="padding: 4px 8px; font-size: 11px; margin-left: 4px;">Copy</button>
+                </div>
+                <div id="debugLog" style="flex: 1; overflow-y: auto; padding: 8px; font-family: monospace; font-size: 11px; color: #0f0;"></div>
+            </div>
         </div>
     </div>
 
-    <!-- Macro Editor -->
-    <div class="macro-editor-wrapper" style="grid-column: 1 / -1; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; margin-bottom: 8px;">
-        <div style="display: flex; align-items: center; padding: 4px 8px; border-bottom: 1px solid #333;">
-            <select id="macroSelect" onchange="loadSelectedMacro()" style="padding: 2px 8px; font-size: 11px; background: #333; color: #fff; border: 1px solid #555; border-radius: 3px;">
-                <option value="">Select Macro...</option>
-            </select>
-            <button onclick="saveMacroEditor()" style="margin-left: 8px; padding: 2px 12px; font-size: 11px; background: #4a4a2a; border-color: #6a6a3a;">Save</button>
-        </div>
-        <textarea id="macroEditor"
-            style="width: 100%; height: 200px; background: #111; border: none; border-radius: 0 0 4px 4px;
-                   color: #0f0; font-family: monospace; font-size: 11px; padding: 8px; resize: vertical; box-sizing: border-box;"
-            placeholder="Select a macro from the dropdown to edit..."></textarea>
-    </div>
-
-    <!-- Console + Status Panel -->
-    <div class="console-wrapper">
-        <div class="debug-console">
-            <div class="debug-header">
-                <span onclick="toggleDebug()" style="cursor:pointer;">Console</span>
-                <input type="text" id="gcodeInput" placeholder="G-code..."
-                       style="flex: 1; margin: 0 8px; padding: 4px 8px; background: #222; border: 1px solid #444;
-                              border-radius: 4px; color: #fff; font-family: monospace; font-size: 12px;"
-                       onkeydown="handleGcodeKeydown(event)">
-                <button onclick="sendGcodeInput()" style="padding: 4px 12px; font-size: 11px; margin-right: 8px;">Send</button>
-                <button onclick="clearDebugLog()" style="padding:2px 8px;font-size:11px;margin-right:4px;">Clear</button>
-                <button onclick="copyDebugLog(event)" style="padding:2px 8px;font-size:11px;margin-right:4px;">Copy</button>
-                <span id="debugToggle" onclick="toggleDebug()" style="cursor:pointer;">&#x25B2;</span>
-            </div>
-            <div class="debug-content open" id="debugContent">
-                <div id="debugLog"></div>
-            </div>
-        </div>
-        <div class="status-panel">
-            <div class="section">
-                <h4>Controller Status</h4>
-                <div class="row"><span class="label">State:</span><span class="value" id="spState">--</span></div>
-            </div>
-            <div class="section">
-                <h4>Overrides (Ov:)</h4>
-                <div class="row"><span class="label">Feed:</span><span class="value" id="spFeedOv">--</span></div>
-                <div class="row"><span class="label">Rapid:</span><span class="value" id="spRapidOv">--</span></div>
-                <div class="row"><span class="label">Spindle:</span><span class="value" id="spSpindleOv">--</span></div>
-            </div>
-            <div class="section">
-                <h4>Actual (FS:)</h4>
-                <div class="row"><span class="label">Feed:</span><span class="value" id="spFeed">-- mm/min</span></div>
-                <div class="row"><span class="label">Spindle:</span><span class="value" id="spSpindle">-- RPM</span></div>
-            </div>
-            <div class="section">
-                <h4>Input Pins</h4>
-                <div id="spPins" style="font-size:11px; color:#888;">--</div>
-            </div>
-        </div>
+    <!-- Hidden status elements (updated by JS) -->
+    <div style="display:none;">
+        <span id="spState"></span>
+        <span id="spFeedOv"></span><span id="spRapidOv"></span><span id="spSpindleOv"></span>
+        <span id="spFeed"></span><span id="spSpindle"></span><span id="spPins"></span>
+        <span id="debugToggle"></span><span id="debugContent"></span>
+        <select id="macroSelect"></select><textarea id="macroEditor"></textarea>
     </div>
 
     <!-- M0 Continue Overlay -->
     <div id="continueOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;" onclick="if(event.target===this)hideContinue()">
         <button onclick="macroContinue(); hideContinue();" style="padding: 80px 160px; font-size: 72px; font-weight: bold; background: #2a6a2a; border: 6px solid #4a9a4a; color: #fff; border-radius: 24px; cursor: pointer; box-shadow: 0 0 60px rgba(0,255,0,0.3); text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
-            CONTINUE<br><span style="font-size: 24px; color: #aaa;">Swap tool, then press to resume</span>
+            CONTINUE<br><span id="continueDesc" style="font-size: 24px; color: #aaa; white-space: pre-line;">Swap tool, then press to resume</span>
         </button>
     </div>
 
@@ -977,14 +970,16 @@
 
         // ========== STATUS HANDLING ==========
         function handleStatus(msg) {
-            const factor = currentUnit === 'in' ? 1/25.4 : 1;
-            const decimals = 3;
+            function roundDisplay(val) {
+                if (currentUnit === 'in') return (val / 25.4).toFixed(3);
+                return (Math.round(val / 0.025) * 0.025).toFixed(3);
+            }
 
             // Work position
             if (msg.wpos) {
-                document.getElementById('workX').textContent = (msg.wpos.x * factor).toFixed(decimals);
-                document.getElementById('workY').textContent = (msg.wpos.y * factor).toFixed(decimals);
-                document.getElementById('workZ').textContent = (msg.wpos.z * factor).toFixed(decimals);
+                document.getElementById('workX').textContent = roundDisplay(msg.wpos.x);
+                document.getElementById('workY').textContent = roundDisplay(msg.wpos.y);
+                document.getElementById('workZ').textContent = roundDisplay(msg.wpos.z);
                 document.getElementById('workA').textContent = (msg.wpos.a || 0).toFixed(3);
             }
 
@@ -1019,9 +1014,9 @@
                     // DEBUG button - no auto-update, user controls content
                 }
 
-                document.getElementById('machX').textContent = (machPosX * factor).toFixed(decimals);
-                document.getElementById('machY').textContent = (machPosY * factor).toFixed(decimals);
-                document.getElementById('machZ').textContent = (machPosZ * factor).toFixed(decimals);
+                document.getElementById('machX').textContent = roundDisplay(machPosX);
+                document.getElementById('machY').textContent = roundDisplay(machPosY);
+                document.getElementById('machZ').textContent = roundDisplay(machPosZ);
                 document.getElementById('machA').textContent = machPosA.toFixed(3);
 
                 // Update fixtures view if active (for live tool position)
@@ -1251,8 +1246,11 @@
                 document.getElementById('gcodeInput').placeholder = 'L' + msg.current + ': ' + msg.current_gcode;
             }
             // Update G-code viewer with current line highlight
-            if (msg.current > 0 && currentView === 'gcode') {
-                updateGcodeViewer(null, msg.current);
+            if (msg.current > 0) {
+                gcodeCurrentLine = msg.current;
+                if (currentView === 'gcode') {
+                    updateGcodeViewer(null, msg.current);
+                }
             }
             // Update recovery info
             if (msg.last_safe_line) {
@@ -1421,6 +1419,7 @@
             debugLog('[' + (msg.name || 'MACRO') + '] Step ' + msg.step + '/' + msg.total + ': ' + msg.description, 'info');
             // Show CONTINUE overlay when waiting for user (tool change)
             if (msg.waiting) {
+                document.getElementById('continueDesc').textContent = msg.description || 'Press to resume';
                 document.getElementById('continueOverlay').style.display = 'flex';
             }
         }
@@ -1583,6 +1582,13 @@
         let jogStep = 2.5;
         let jogCounter = 0;
 
+        function setJogFeed(mode) {
+            jogFeedMode = mode;
+            document.getElementById('btnJogRapid').classList.toggle('active', mode === 'rapid');
+            document.getElementById('jogFeedInput').classList.toggle('active', mode === 'slow');
+            document.getElementById('jogPlungeInput').classList.toggle('active', mode === 'slow');
+        }
+
         function jog(axis, dir) {
             jogCounter++;
             const dist = toMM(jogStep) * dir;  // Convert to mm for GRBL
@@ -1607,7 +1613,12 @@
 
             pendingX = targetX; pendingY = targetY;
             pendingZ = targetZ; pendingA = targetA;
-            jogCmd('G91 G0 ' + axis + dist);
+            if (jogFeedMode === 'rapid') {
+                jogCmd('G91 G0 ' + axis + dist);
+            } else {
+                const f = (axis === 'Z') ? jogSlowPlunge : jogSlowFeed;
+                jogCmd('G91 G1 ' + axis + dist + ' F' + f);
+            }
             jogCmd('G90');
         }
 
@@ -1619,8 +1630,14 @@
 
         function setStep(step, btn) {
             jogStep = step;
-            document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#stepButtons .step-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            // Check if custom step was selected
+            const isCustom = (btn.id === 'customStepInput');
+            document.querySelectorAll('button[onclick^="jog("]').forEach(b => {
+                b.classList.toggle('jog-danger', isCustom);
+            });
+            customStepEditing = isCustom;
         }
 
         // ========== OVERRIDES ==========
@@ -1733,22 +1750,32 @@
         }
 
         function jobPause() {
-            wsSend({ type: 'feed_hold' });
+            const now = Date.now();
+            if (now - lastJobActionTime < 500) return;
+            lastJobActionTime = now;
+            sendRealtime(0x21);  // Feed hold - immediate
+            sendRealtime(0x9E);  // Spindle stop - immediate
             wsSend({ type: 'file_pause' });
             streamerPaused = true;
             spindleWasRunning = true;
-            sendRealtime(0x9E); // Spindle stop override
         }
 
+        let lastJobActionTime = 0;
         function jobStop() {
-            wsSend({ type: 'file_stop' });
+            const now = Date.now();
+            if (now - lastJobActionTime < 500) return;
+            lastJobActionTime = now;
+            sendRealtime(0x21);  // Feed hold - immediate stop
+            sendRealtime(0x9E);  // Spindle stop
+            wsSend({ type: 'file_stop' });  // Server handles reset + coordinate restore
             if (macroRunning) {
                 wsSend({ type: 'macro_cancel' });
-                sendRealtime(0x21);  // Feed hold to stop motion immediately
             }
-            sendRealtime(0x9E);  // Spindle stop
             spindleWasRunning = false;
             streamerPaused = false;
+            hideContinue();
+            macroRunning = false;
+            updateButtonStates();
         }
 
         // ========== VIEW STATE (must be before fixtures) ==========
@@ -2175,7 +2202,7 @@
             }
 
             // Rotary macros - run directly with tool diameter
-            if (pendingMacro === 'rotary_chuck' || pendingMacro === 'rotary_tailstock') {
+            if (pendingMacro === 'rotary_chuck' || pendingMacro === 'rotary_parallel') {
                 debugLog('=== MACRO: ' + pendingMacro + ' (tool=' + toolDiameter + 'mm) ===', 'info');
                 wsSend({ type: 'macro_run', name: pendingMacro, tool_diameter: toolDiameter });
                 pendingMacro = '';
@@ -2369,8 +2396,13 @@
 
         // ========== UNITS ==========
         let currentUnit = 'mm';
-        const mmSteps = [0.025, 0.25, 2.5, 25];
-        const inSteps = [0.001, 0.01, 0.1, 1];
+        let customStep = parseFloat(localStorage.getItem('customStep') || '5');
+        let customStepEditing = false;
+        let jogFeedMode = 'rapid';
+        let jogSlowFeed = parseFloat(localStorage.getItem('jogSlowFeed') || '500');
+        let jogSlowPlunge = parseFloat(localStorage.getItem('jogSlowPlunge') || '100');
+        const mmSteps = [0.025, 0.25, 2.5, 25, customStep];
+        const inSteps = [0.001, 0.01, 0.1, 1, customStep];
 
         function toggleUnits() {
             // UI display only - GRBL always works in mm
@@ -2378,6 +2410,19 @@
             currentUnit = (currentUnit === 'mm') ? 'in' : 'mm';
             document.getElementById('machineSpeedUnit').textContent = currentUnit + '/min';
             updateStepButtons();
+            updateFeedDisplay();
+        }
+
+        function updateFeedDisplay() {
+            const fi = document.getElementById('jogFeedInput');
+            const pi = document.getElementById('jogPlungeInput');
+            if (currentUnit === 'in') {
+                fi.value = (jogSlowFeed / 25.4).toFixed(1);
+                pi.value = (jogSlowPlunge / 25.4).toFixed(1);
+            } else {
+                fi.value = jogSlowFeed;
+                pi.value = jogSlowPlunge;
+            }
         }
 
         // Convert mm value to display units
@@ -2395,17 +2440,48 @@
             const container = document.getElementById('stepButtons');
             document.getElementById('stepLabel').textContent = 'STEP (' + currentUnit + ')';
             container.innerHTML = '';
-            steps.forEach((step) => {
-                const btn = document.createElement('button');
-                btn.className = 'step-btn';
-                btn.textContent = step;
-                btn.style.cssText = 'padding:12px 8px; font-size:12px; flex:1;';
-                btn.onclick = function() { setStep(step, this); };
-                if ((currentUnit === 'mm' && step === 2.5) || (currentUnit === 'in' && step === 0.1)) {
-                    btn.classList.add('active');
-                    jogStep = step;
+            steps.forEach((step, i) => {
+                if (i === steps.length - 1) {
+                    // Custom step: editable input styled as button
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.className = 'step-btn';
+                    inp.id = 'customStepInput';
+                    inp.value = currentUnit === 'in' ? (customStep / 25.4).toFixed(3) : customStep;
+                    inp.style.cssText = 'padding:12px 4px; font-size:12px; flex:1; text-align:center; background:#333; color:#fff; border:1px solid #555; border-radius:4px; width:0; min-width:0;';
+                    inp.onclick = function() {
+                        setStep(customStep, this);
+                        this.select();
+                    };
+                    inp.onchange = function() {
+                        const val = parseFloat(this.value);
+                        if (!isNaN(val) && val > 0) {
+                            customStep = currentUnit === 'in' ? val * 25.4 : val;
+                            localStorage.setItem('customStep', customStep);
+                            mmSteps[4] = customStep;
+                            inSteps[4] = customStep;
+                            jogStep = customStep;
+                            this.classList.add('active');
+                        }
+                    };
+                    inp.onkeydown = function(e) { e.stopPropagation(); };
+                    inp.onfocus = function() {
+                        setStep(customStep, this);
+                    };
+                    if (jogStep === customStep) inp.classList.add('active');
+                    container.appendChild(inp);
+                } else {
+                    const btn = document.createElement('button');
+                    btn.className = 'step-btn';
+                    btn.textContent = step;
+                    btn.style.cssText = 'padding:12px 8px; font-size:12px; flex:1;';
+                    btn.onclick = function() { setStep(step, this); };
+                    if ((currentUnit === 'mm' && step === 2.5) || (currentUnit === 'in' && step === 0.1)) {
+                        btn.classList.add('active');
+                        jogStep = step;
+                    }
+                    container.appendChild(btn);
                 }
-                container.appendChild(btn);
             });
         }
 
@@ -2543,6 +2619,7 @@
         }
 
         // ========== DEBUG CONSOLE ==========
+        let consoleAutoScroll = true;
         function debugLog(msg, type) {
             type = type || '';
             const log = document.getElementById('debugLog');
@@ -2553,8 +2630,20 @@
             while (log.children.length > 200) {
                 log.removeChild(log.firstChild);
             }
-            const content = document.getElementById('debugContent');
-            content.scrollTop = content.scrollHeight;
+            if (consoleAutoScroll) {
+                log.scrollTop = log.scrollHeight;
+            }
+        }
+
+        function toggleAutoScroll() {
+            consoleAutoScroll = !consoleAutoScroll;
+            const btn = document.getElementById('btnAutoScroll');
+            btn.style.background = consoleAutoScroll ? '#2a4a2a' : '#333';
+            btn.style.borderColor = consoleAutoScroll ? '#3a6a3a' : '#555';
+            if (consoleAutoScroll) {
+                const log = document.getElementById('debugLog');
+                log.scrollTop = log.scrollHeight;
+            }
         }
 
         function toggleDebug() {
@@ -2656,16 +2745,28 @@
             const newIndex = Math.max(0, Math.min(steps.length - 1, currentIndex + direction));
             if (newIndex !== currentIndex) {
                 jogStep = steps[newIndex];
-                document.querySelectorAll('.step-btn').forEach((btn, i) => {
+                const btns = document.querySelectorAll('#stepButtons .step-btn');
+                btns.forEach((btn, i) => {
                     btn.classList.toggle('active', i === newIndex);
                 });
+                // Trigger danger state if cycling to/from custom step
+                const isCustom = (newIndex === steps.length - 1);
+                document.querySelectorAll('button[onclick^="jog("]').forEach(b => {
+                    b.classList.toggle('jog-danger', isCustom);
+                });
+                customStepEditing = isCustom;
             }
         }
 
+        let shiftHeldFromRapid = false;
         document.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (customStepEditing) return;
             if (e.key === '>' || e.key === '.') { e.preventDefault(); cycleStep(1); return; }
             if (e.key === '<' || e.key === ',') { e.preventDefault(); cycleStep(-1); return; }
+            if (e.key === '[') { e.preventDefault(); setJogFeed('rapid'); return; }
+            if (e.key === ']') { e.preventDefault(); setJogFeed('slow'); return; }
+            if (e.key === 'Shift' && jogFeedMode === 'rapid') { e.preventDefault(); setJogFeed('slow'); shiftHeldFromRapid = true; return; }
             if (e.key === 'ArrowUp') { e.preventDefault(); jog('Y', 1); return; }
             if (e.key === 'ArrowDown') { e.preventDefault(); jog('Y', -1); return; }
             if (e.key === 'ArrowLeft') { e.preventDefault(); jog('X', -1); return; }
@@ -2674,6 +2775,13 @@
             if (e.key === 'PageDown') { e.preventDefault(); jog('Z', -1); return; }
             if (e.key === 'Home') { e.preventDefault(); jog('A', -1); return; }
             if (e.key === 'End') { e.preventDefault(); jog('A', 1); return; }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'Shift' && shiftHeldFromRapid) {
+                setJogFeed('rapid');
+                shiftHeldFromRapid = false;
+            }
         });
 
         // ========== CAMERA ==========
@@ -2689,12 +2797,15 @@
             document.getElementById('camera').style.visibility = view === 'camera' ? 'visible' : 'hidden';
             document.getElementById('gcodeViewer').style.display = view === 'gcode' ? 'block' : 'none';
             document.getElementById('fixturesViewer').style.display = view === 'fixtures' ? 'block' : 'none';
-            document.getElementById('btnViewCamera').style.background = view === 'camera' ? '#2a4a2a' : '#333';
-            document.getElementById('btnViewCamera').style.borderColor = view === 'camera' ? '#3a6a3a' : '#555';
-            document.getElementById('btnViewGcode').style.background = view === 'gcode' ? '#2a4a2a' : '#333';
-            document.getElementById('btnViewGcode').style.borderColor = view === 'gcode' ? '#3a6a3a' : '#555';
-            document.getElementById('btnViewFixtures').style.background = view === 'fixtures' ? '#2a4a2a' : '#333';
-            document.getElementById('btnViewFixtures').style.borderColor = view === 'fixtures' ? '#3a6a3a' : '#555';
+            document.getElementById('consoleViewer').style.display = view === 'console' ? 'flex' : 'none';
+            ['Camera','Gcode','Fixtures','Console'].forEach(name => {
+                const btn = document.getElementById('btnView' + name);
+                if (btn) {
+                    const active = view === name.toLowerCase();
+                    btn.style.background = active ? '#2a4a2a' : '#333';
+                    btn.style.borderColor = active ? '#3a6a3a' : '#555';
+                }
+            });
             // Refresh gcode view when switching to it
             if (view === 'gcode' && gcodeLines.length) {
                 updateGcodeViewer(null, gcodeCurrentLine);
@@ -2702,6 +2813,11 @@
             // Render fixtures view when switching to it
             if (view === 'fixtures') {
                 renderFixturesView();
+            }
+            // Scroll console to bottom when switching to it
+            if (view === 'console') {
+                const log = document.getElementById('debugLog');
+                log.scrollTop = log.scrollHeight;
             }
         }
 
@@ -2774,6 +2890,8 @@
         setupCamera();
         updateStepButtons();
         updateButtonStates();
+        document.getElementById('jogFeedInput').value = jogSlowFeed;
+        document.getElementById('jogPlungeInput').value = jogSlowPlunge;
     </script>
 </body>
 </html>
