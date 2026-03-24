@@ -853,12 +853,17 @@ class FileStreamer:
             # Skip G19/G18 plane arcs (YZ/XZ — meaningless without Z)
             if 'G19' in upper or 'G18' in upper:
                 return None
-            # Strip Z, K (helical arc component), feed rate
+            # Strip Z, K (helical arc component)
             line = re.sub(r'Z[-\d.]+', '', line, flags=re.IGNORECASE)
             line = re.sub(r'K[-\d.]+', '', line, flags=re.IGNORECASE)
-            line = re.sub(r'F[\d.]+', '', line, flags=re.IGNORECASE)
-            # Convert G1 to G0 (rapid)
-            line = re.sub(r'\bG0*1\b', 'G0', line)
+            # Strip F from G1 only (arcs need feed rate), convert G1 to G0
+            if re.search(r'\bG0*1\b', line):
+                line = re.sub(r'F[\d.]+', '', line, flags=re.IGNORECASE)
+                line = re.sub(r'\bG0*1\b', 'G0', line)
+            # Set arc feed to max rate so arcs run fast
+            elif re.search(r'\bG0*[23]\b', line):
+                line = re.sub(r'F[\d.]+', '', line, flags=re.IGNORECASE)
+                line = line.strip() + ' F5000'
             line = line.strip()
             # Skip if nothing useful left
             if not line or line == 'G0' or line == 'G17':
@@ -936,6 +941,11 @@ class FileStreamer:
                         # Wait for macro to finish
                         while self.macros.running:
                             await asyncio.sleep(0.1)
+                        # If tool change failed, stop streaming
+                        if self.macros.last_error:
+                            elog(f'STREAMER: Tool change failed: {self.macros.last_error}')
+                            self.stop_flag = True
+                            break
                         await self._wait_idle(max_polls=150)
                         # Refresh WCO after tool change (tool offset changes Z WCO)
                         await self.grbl.send_command('$#')

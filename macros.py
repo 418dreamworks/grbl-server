@@ -46,6 +46,8 @@ class MacroEngine:
         # Stored values from SetZ
         self.probe_work_z: Optional[float] = None
         self.set_z_done: bool = False
+        self.homing_ok: bool = False  # True after successful homing
+        self.last_error: str = ''  # Set by _report_error, cleared by _report_done
 
         # Tool diameter for probing macros (can be set before running)
         self.tool_diameter: float = TOOL_DIA_QUARTER  # Default to 1/4"
@@ -144,6 +146,9 @@ class MacroEngine:
         """
         Run the SetZ macro - exact CNCjs commands.
         """
+        if not self.homing_ok:
+            await self._report_error('Home the machine first')
+            return
         self.current_macro = 'set_z'
         self.running = True
         self.cancel_flag = False
@@ -217,12 +222,10 @@ class MacroEngine:
             restore_z = offset + start_z
             await self._send_and_log(f'G10 L20 P1 Z{restore_z:.3f}')
 
-            # G0 X[startX] Y[startY]
-            await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
+            # Z top, then XY return
+            await self._send_and_log('G53 G0 Z-2')
             await self._wait_idle()
-
-            # Return Z to exact start position
-            await self._send_and_log(f'G0 Z{start_z:.3f}')
+            await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
             await self._wait_idle()
 
             await self._log('=== SET_Z COMPLETE ===')
@@ -372,12 +375,10 @@ class MacroEngine:
             restore_z = start_z + offset_to_safe + tool_offset
             await self._send_and_log(f'G10 L20 P1 Z{restore_z:.3f}')
 
-            # G0 X[startX] Y[startY]
-            await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
+            # Z top, then XY return
+            await self._send_and_log('G53 G0 Z-2')
             await self._wait_idle()
-
-            # G0 Z[startZ]
-            await self._send_and_log(f'G0 Z{start_z:.3f}')
+            await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
             await self._wait_idle()
 
             await self._log('=== TOOL_CHANGE COMPLETE ===')
@@ -861,7 +862,8 @@ class MacroEngine:
             })
 
     async def _report_done(self):
-        """Report macro completion."""
+        """Report macro completion. Clears last_error."""
+        self.last_error = ''
         if self.broadcast_callback:
             await self.broadcast_callback({
                 'type': 'macro_done',
@@ -869,7 +871,8 @@ class MacroEngine:
             })
 
     async def _report_error(self, error: str):
-        """Report macro error."""
+        """Report macro error. Sets last_error for callers to check."""
+        self.last_error = error
         if self.broadcast_callback:
             await self.broadcast_callback({
                 'type': 'macro_error',
@@ -995,11 +998,13 @@ class MacroEngine:
                 await self._send_and_log(restore_cmd)
                 await self._log(f'WCO restored')
 
+            self.homing_ok = True
             await self._log('=== HOMING COMPLETE ===')
             await self._report_done()
 
         except Exception as e:
             import traceback
+            self.homing_ok = False
             _elog.error(f'HOMING ERROR: {e}\n{traceback.format_exc()}')
             await self._log(f'HOMING ERROR: {e}')
             await self._report_error(str(e))
