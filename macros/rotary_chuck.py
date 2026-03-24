@@ -8,7 +8,7 @@ await self._log('=== CHUCK FIND ===')
 await self._wait_idle()
 
 # Y offset: tool center is at r from reference edge
-REF_EDGE_TO_CENTER = 20.200
+REF_EDGE_TO_CENTER = 20.050
 CHUCK_Y_OFFSET = r + REF_EDGE_TO_CENTER
 y = self.grbl.status.wpos['y']
 await self._send_and_log(f'G10 L20 P1 Y{y - CHUCK_Y_OFFSET:.3f}')

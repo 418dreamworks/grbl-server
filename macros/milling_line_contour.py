@@ -28,6 +28,12 @@ original_mode = await self._get_distance_mode()
 
 await self._log(f'Ramp increment: {ramp_increment:.3f}, Stepover: {stepover:.3f}')
 
+# Record start position for return
+await self._wait_idle()
+start_x = self.grbl.status.wpos['x']
+start_y = self.grbl.status.wpos['y']
+start_z = self.grbl.status.wpos['z']
+
 # Start spindle
 await self._send_and_log(f'M3 S{SPINDLE_RPM}')
 await asyncio.sleep(SPINDLE_WARMUP)
@@ -89,16 +95,11 @@ while covered < self.width:
 await self._stream_lines(zigzag_lines)
 await self._wait_idle()
 
-# Return to start position
+# Return to start: Z first, then XY
 await self._send_and_log('M5')
-await self._send_and_log(f'G0 Z{self.depth:.3f}')  # Back up to start Z
+await self._send_and_log('G90')
+await self._send_and_log(f'G0 Z{start_z:.3f}')
+await self._send_and_log(f'G0 X{start_x:.3f} Y{start_y:.3f}')
 
-# Return XY: undo perpendicular offset, then return along line if at end
-if at_end:
-    await self._send_and_log(f'G0 X{-self.end_x - total_perp_x:.3f} Y{-self.end_y - total_perp_y:.3f}')
-else:
-    await self._send_and_log(f'G0 X{-total_perp_x:.3f} Y{-total_perp_y:.3f}')
-
-# Restore original mode
 await self._send_and_log(original_mode)
 await self._log('=== LINE CONTOUR COMPLETE ===')

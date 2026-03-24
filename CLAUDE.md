@@ -1,5 +1,11 @@
 # Claude Code Rules for nedjrbrains
 
+## MANDATORY — Do Not Code Without Permission
+Do NOT write or suggest code unless the user explicitly asks. Diagnose first, explain the problem, and wait for instructions. If you need to add logging to diagnose, explain what you need and ask permission first.
+
+## MANDATORY — Everything Must Be Logged
+All server and HTML events MUST be visible in error.log. If you cannot see what the user sees, add logging so you can. Every button click, step change, unit toggle, jog, block, feed change — everything. If it happens in the UI, it must appear in error.log.
+
 ## MANDATORY — Read These Files Before Any Work
 You MUST read these two files at the start of EVERY conversation, before making ANY edits:
 1. `~/.claude/projects/-home-tzuohann-Documents-grbl-server/memory/feedback_custom_step_safety.md`

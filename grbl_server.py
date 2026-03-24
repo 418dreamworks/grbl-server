@@ -514,13 +514,14 @@ class GrblConnection:
             if line.strip().upper() in ('G28.1', 'G30.1') or line.strip().upper().startswith('G10'):
                 await asyncio.sleep(0.1)
                 await self.send_command('$#')
-            # After $ setting change: update cache and soft-reset GRBL to flush EEPROM
+            # After $ setting change: soft-reset GRBL, re-read all settings, broadcast
             if line.strip().startswith('$') and '=' in line:
-                key, value = line.strip().split('=', 1)
-                self.settings[key] = value
                 await asyncio.sleep(0.2)
-                self.send_realtime(b'\x18')  # Soft reset
-                await asyncio.sleep(1.0)  # Wait for GRBL to reboot
+                self.send_realtime(b'\x18')  # Soft reset to flush EEPROM
+                await asyncio.sleep(1.0)
+                await self.send_command('$$')  # Re-read all settings from GRBL
+                if self.broadcast_callback:
+                    await self.broadcast_callback({'type': 'settings', 'settings': self.settings})
             return result
         except asyncio.TimeoutError:
             return 'error:timeout'
@@ -864,6 +865,27 @@ class FileStreamer:
                 return None
         return line
 
+    async def _drain_buffer(self, sent_lines, buf_used_ref: list, timeout: float = 30.0):
+        """Drain all pending stream responses. buf_used_ref is a single-element list [buf_used]."""
+        while sent_lines and not self.stop_flag:
+            try:
+                result_type, result = await asyncio.wait_for(
+                    self.grbl.stream_queue.get(), timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                elog('STREAMER: Timeout draining buffer')
+                break
+            nbytes, gcode, line_num = sent_lines.popleft()
+            buf_used_ref[0] -= nbytes
+            self.current_line = line_num + 1
+
+    async def _wait_idle(self, max_polls: int = 100, interval: float = 0.2):
+        """Poll until GRBL reaches Idle state."""
+        for _ in range(max_polls):
+            if self.grbl.status.state == 'Idle':
+                return
+            await asyncio.sleep(interval)
+
     async def _stream_loop(self):
         """Main streaming loop using character-counting protocol."""
         RX_BUF_SIZE = 128
@@ -903,23 +925,10 @@ class FileStreamer:
 
                     # Tool change: drain buffer, run macro, then continue
                     if self._is_tool_change(raw) and self.macros:
-                        # Wait for all pending commands to finish
-                        while sent_lines and not self.stop_flag:
-                            try:
-                                result_type, result = await asyncio.wait_for(
-                                    self.grbl.stream_queue.get(), timeout=30.0
-                                )
-                            except asyncio.TimeoutError:
-                                elog('STREAMER: Timeout draining buffer for tool change')
-                                break
-                            nbytes, gcode, line_num = sent_lines.popleft()
-                            buf_used -= nbytes
-                            self.current_line = line_num + 1
-                        # Wait for GRBL idle
-                        for _ in range(100):
-                            if self.grbl.status.state == 'Idle':
-                                break
-                            await asyncio.sleep(0.2)
+                        buf_used_ref = [buf_used]
+                        await self._drain_buffer(sent_lines, buf_used_ref)
+                        buf_used = buf_used_ref[0]
+                        await self._wait_idle()
                         # Exit streaming mode so macro can use send_command
                         self.grbl.streaming = False
                         elog(f'STREAMER: Tool change at line {send_idx + 1}: {raw}')
@@ -927,11 +936,7 @@ class FileStreamer:
                         # Wait for macro to finish
                         while self.macros.running:
                             await asyncio.sleep(0.1)
-                        # Wait for GRBL idle before resuming
-                        for _ in range(150):
-                            if self.grbl.status.state == 'Idle':
-                                break
-                            await asyncio.sleep(0.2)
+                        await self._wait_idle(max_polls=150)
                         # Refresh WCO after tool change (tool offset changes Z WCO)
                         await self.grbl.send_command('$#')
                         # Drain both queues before re-entering streaming
@@ -1024,6 +1029,16 @@ class FileStreamer:
                     nbytes, gcode, line_num = sent_lines.popleft()
                     buf_used -= nbytes
                     self.current_line = line_num + 1
+
+                    # Broadcast buffer contents
+                    if self.broadcast_callback:
+                        buf_cmds = [g for _, g, _ in sent_lines]
+                        await self.broadcast_callback({
+                            'type': 'grbl_buffer',
+                            'commands': buf_cmds,
+                            'bytes': buf_used,
+                            'max': 128,
+                        })
 
                     if result.startswith('error'):
                         elog(f'GCODE ERROR line {line_num + 1}: {gcode} -> {result}')
@@ -1367,6 +1382,23 @@ class GrblServer:
             self.clients.discard(websocket)
             print(f'[WS] Client disconnected ({len(self.clients)} total)')
 
+    async def _soft_reset_and_restore_wco(self, log_prefix: str, saved_wco: dict = None):
+        """Soft-reset GRBL and restore work coordinates from saved WCO."""
+        if saved_wco is None:
+            saved_wco = dict(self.grbl.wco_cached)
+        self.grbl.send_realtime(b'\x18')
+        await asyncio.sleep(1.5)
+        await self.grbl.send_command('$X')
+        await asyncio.sleep(0.3)
+        mpos = self.grbl.status.mpos
+        await self.grbl.send_command(
+            f'G10 L20 P1 X{mpos["x"] - saved_wco["x"]:.3f} '
+            f'Y{mpos["y"] - saved_wco["y"]:.3f} '
+            f'Z{mpos["z"] - saved_wco["z"]:.3f} '
+            f'A{mpos["a"] - saved_wco["a"]:.3f}'
+        )
+        elog(f'{log_prefix}: Coordinates restored (WCO X{saved_wco["x"]:.3f} Y{saved_wco["y"]:.3f} Z{saved_wco["z"]:.3f})')
+
     async def handle_message(self, ws, msg: Dict[str, Any]):
         """Route incoming WebSocket message."""
         msg_type = msg.get('type', '')
@@ -1410,15 +1442,8 @@ class GrblServer:
             await self.grbl.send_command('$X')
 
         elif msg_type == 'reset':
-            saved_wco = dict(self.grbl.wco_cached)
-            self.grbl.send_realtime(b'\x18')
             self.macros.cancel()
-            await asyncio.sleep(1.5)
-            await self.grbl.send_command('$X')
-            await asyncio.sleep(0.3)
-            mpos = self.grbl.status.mpos
-            await self.grbl.send_command(f'G10 L20 P1 X{mpos["x"] - saved_wco["x"]:.3f} Y{mpos["y"] - saved_wco["y"]:.3f} Z{mpos["z"] - saved_wco["z"]:.3f} A{mpos["a"] - saved_wco["a"]:.3f}')
-            elog(f'RESET: Coordinates restored (WCO X{saved_wco["x"]:.3f} Y{saved_wco["y"]:.3f} Z{saved_wco["z"]:.3f})')
+            await self._soft_reset_and_restore_wco('RESET')
 
         elif msg_type == 'feed_hold':
             self.grbl.send_realtime(b'!')
@@ -1462,27 +1487,40 @@ class GrblServer:
             self.streamer.resume()
 
         elif msg_type == 'file_stop':
-            self.streamer.stop()
-            # Save WCO before any reset wipes it
+            # Save WCO immediately
             saved_wco = dict(self.grbl.wco_cached)
-            # Wait for hold to complete
+            self.streamer.stop()
+            # Feed hold stops motion
+            self.grbl.send_realtime(b'!')
             for _ in range(50):
-                if self.grbl.status.state in ('Idle', 'Hold:0'):
+                if self.grbl.status.state in ('Hold:0',):
                     break
                 await asyncio.sleep(0.1)
             # Soft reset to flush GRBL buffer
             self.grbl.send_realtime(b'\x18')
             await asyncio.sleep(1.5)
-            # Unlock
             await self.grbl.send_command('$X')
             await asyncio.sleep(0.3)
-            # Restore coordinates using saved WCO
+            # Restore coordinates from saved WCO
             mpos = self.grbl.status.mpos
-            await self.grbl.send_command(f'G10 L20 P1 X{mpos["x"] - saved_wco["x"]:.3f} Y{mpos["y"] - saved_wco["y"]:.3f} Z{mpos["z"] - saved_wco["z"]:.3f} A{mpos["a"] - saved_wco["a"]:.3f}')
-            elog(f'STREAMER: Stop - coordinates restored (WCO X{saved_wco["x"]:.3f} Y{saved_wco["y"]:.3f} Z{saved_wco["z"]:.3f})')
+            await self.grbl.send_command(
+                f'G10 L20 P1 X{mpos["x"] - saved_wco["x"]:.3f} '
+                f'Y{mpos["y"] - saved_wco["y"]:.3f} '
+                f'Z{mpos["z"] - saved_wco["z"]:.3f} '
+                f'A{mpos["a"] - saved_wco["a"]:.3f}'
+            )
+            # Drain software queues
+            for q in (self.grbl.stream_queue, self.grbl.response_queue):
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except:
+                        break
+            self.grbl.streaming = False
             # Spindle off and raise Z to top
             await self.grbl.send_command('M5')
             await self.grbl.send_command('G53 G0 Z-2')
+            elog(f'STREAMER: Stop complete (WCO restored X{saved_wco["x"]:.3f} Y{saved_wco["y"]:.3f} Z{saved_wco["z"]:.3f})')
 
         elif msg_type == 'home':
             axes = msg.get('axes', 'ZXY')
@@ -1619,6 +1657,9 @@ class GrblServer:
                     'name': 'collision_check',
                     'message': f'WARNING: {len(collisions)} potential fixture collisions detected!'
                 })
+
+        elif msg_type == 'client_log':
+            elog(f'HTML: {msg.get("message", "")}')
 
     def load_html(self):
         """Load jog.html from same directory as script."""

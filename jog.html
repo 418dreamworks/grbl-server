@@ -449,7 +449,7 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.187</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.197</span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- Port selector -->
                     <select id="portSelect" class="port-select" onchange="changePort(this.value)">
@@ -479,7 +479,7 @@
                 <div id="currentLine" style="display:none;">--</div>
                 <div style="display: flex; gap: 16px;">
                 <div class="job-ctrl" style="display: flex; gap: 8px; width: 50%;">
-                    <button id="btnRun" style="flex: 1; background: #2a4a2a; border-color: #3a6a3a;" onclick="jobStart()">Run</button>
+                    <button id="btnRun" style="flex: 1; background: #2a4a2a; border-color: #3a6a3a;" onclick="jobStart()">Cont</button>
                     <button id="btnPause" style="flex: 1; background: #4a4a2a; border-color: #6a6a3a;" onclick="jobPause()">Pause</button>
                     <button id="btnStop" style="flex: 1; background: #4a2a2a; border-color: #6a3a3a;" onclick="jobStop()">Stop</button>
                 </div>
@@ -511,12 +511,12 @@
             </div>
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between;">
-            <div style="display: flex; align-items: center; color: #444; min-width: 520px;">
+            <div style="display: flex; align-items: center; color: #fff; min-width: 520px;">
                 <span class="label clickable" onclick="runMacro('HOMING')" style="display:inline-block;width:50px;margin-right:15px;cursor:pointer;" title="Click to home all axes">MPOS:</span>
-                <span><span style="color: #553; margin-right:-9px;">X:</span><span id="machX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'X'})">&#x2192;0</button></span>
-                <span><span style="color: #553; margin-right:-9px;">Y:</span><span id="machY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'Y'})">&#x2192;0</button></span>
-                <span><span style="color: #553; margin-right:-9px;">Z:</span><span id="machZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'Z'})">&#x2192;0</button></span>
-                <span><span style="color: #553; margin-right:-9px;">A:</span><span id="machA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
+                <span><span style="color: #fc0; margin-right:-9px;">X:</span><span id="machX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'X'})">&#x2192;0</button></span>
+                <span><span style="color: #fc0; margin-right:-9px;">Y:</span><span id="machY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'Y'})">&#x2192;0</button></span>
+                <span><span style="color: #fc0; margin-right:-9px;">Z:</span><span id="machZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'Z'})">&#x2192;0</button></span>
+                <span><span style="color: #fc0; margin-right:-9px;">A:</span><span id="machA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
             </div>
             <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="machineSpeedValue" style="display:inline-block;width:5ch;text-align:right;">0</span><span id="machineSpeedUnit" class="clickable" onclick="toggleUnits()" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;cursor:pointer;text-decoration:underline;">mm/min</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
@@ -549,7 +549,7 @@
                 <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Y0')">Y0</button>
                 <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Z0')">Z0</button>
                 <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Z10')">Z10</button>
-                <button style="background:#6a2a2a; border-color:#8a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G53 G0 Z-2')" title="Raise Z to near machine home (MPos Z=-2)">Z Top</button>
+                <button style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G53 G0 Z-2')" title="Raise Z to near machine home (MPos Z=-2)">Z Top</button>
             </div>
             <!-- JOG -->
             <div style="font-size:14.5px; color:#888; text-align:center; margin-top:20px;">JOG</div>
@@ -599,6 +599,11 @@
                 <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="runProbeZ()" title="Probe Z surface with touch plate (22mm). Sets Z=22 at contact.">Z</button>
                 <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_x')" title="Probe X edge (left/right). Plunges 6mm, probes fast then slow, sets X with 7mm plate offset + tool radius.">X</button>
                 <button style="background: #2a3a4a; border-color: #3a5a7a; min-height:49px;" onclick="showProbeModal('probe_y')" title="Probe Y edge (front/back). Plunges 6mm, probes fast then slow, sets Y with 7mm plate offset + tool radius.">Y</button>
+            </div>
+            <!-- GRBL Buffer -->
+            <div style="margin-top:10px;">
+                <div style="font-size:11px; color:#666; text-align:center;">BUFFER</div>
+                <div id="grblBuffer" style="font-family:monospace; font-size:10px; color:#888; background:#111; border-radius:4px; padding:4px; max-height:80px; overflow-y:auto;"></div>
             </div>
         </div>
     </div>
@@ -659,6 +664,7 @@
     <div class="right-col">
         <div style="display: flex; gap: 4px; margin-bottom: 8px;">
             <button id="btnViewCamera" onclick="showView('camera')" style="flex: 1; padding: 6px; font-size: 12px; background: #2a4a2a; border-color: #3a6a3a;">Camera</button>
+            <button id="btnCameraToggle" onclick="toggleCamera()" style="padding: 6px; font-size: 11px; background: #333;">Cam ON</button>
             <button id="btnViewGcode" onclick="showView('gcode')" style="flex: 1; padding: 6px; font-size: 12px;">G-code</button>
             <button id="btnViewFixtures" onclick="showView('fixtures')" style="flex: 1; padding: 6px; font-size: 12px;">Fixtures</button>
             <button id="btnViewConsole" onclick="showView('console')" style="flex: 1; padding: 6px; font-size: 12px;">Console</button>
@@ -840,7 +846,7 @@
 
     <script>
         // ========== CONFIGURATION ==========
-        const CAMERA_URL = 'http://192.168.68.105:8080/?action=stream';
+        const CAMERA_URL = 'http://localhost:8080/?action=stream';
 
         // GRBL settings (populated from server)
         let workMaxX = 400, workMaxY = 400, workMaxZ = 100, workMaxA = 99999;
@@ -948,6 +954,9 @@
                 case 'file_status':  handleFileStatus(msg); break;
                 case 'file_done':    handleFileDone(msg); break;
                 case 'file_error':   handleFileError(msg); break;
+                case 'grbl_buffer':
+                    document.getElementById('grblBuffer').textContent = msg.bytes + '/128: ' + msg.commands.join(' | ');
+                    break;
                 case 'file_start_error':
                     debugLog('START ERROR: ' + msg.error, 'error');
                     var lp = document.getElementById('lineProgress');
@@ -1173,6 +1182,7 @@
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
+            event.target.value = '';  // Reset so same file triggers onchange again
             const reader = new FileReader();
             reader.onload = (e) => {
                 const content = e.target.result;
@@ -1557,6 +1567,7 @@
         }
 
         function showBlocked(msg) {
+            debugLog('BLOCKED: ' + msg, 'error');
             const el = document.getElementById('debugInfo');
             const orig = el.style.background;
             el.style.background = '#6a2a2a';
@@ -1583,6 +1594,7 @@
         let jogCounter = 0;
 
         function setJogFeed(mode) {
+            debugLog('FEED: ' + mode + (mode === 'slow' ? ' F' + jogSlowFeed + ' P' + jogSlowPlunge : ''), 'info');
             jogFeedMode = mode;
             document.getElementById('btnJogRapid').classList.toggle('active', mode === 'rapid');
             document.getElementById('jogFeedInput').classList.toggle('active', mode === 'slow');
@@ -1590,24 +1602,31 @@
         }
 
         function jog(axis, dir) {
+            debugLog('JOG: ' + axis + (dir > 0 ? '+' : '-') + ' step=' + jogStep + ' unit=' + currentUnit + ' feed=' + jogFeedMode + ' pending=(' + pendingX.toFixed(1) + ',' + pendingY.toFixed(1) + ',' + pendingZ.toFixed(1) + ',' + pendingA.toFixed(1) + ') customEdit=' + customStepEditing, 'info');
             jogCounter++;
-            const dist = toMM(jogStep) * dir;  // Convert to mm for GRBL
+            const dist = (jogStep === customStep ? jogStep : toMM(jogStep)) * dir;
             let targetX = pendingX, targetY = pendingY, targetZ = pendingZ, targetA = pendingA;
             if (axis === 'X') targetX += dist;
             if (axis === 'Y') targetY += dist;
             if (axis === 'Z') targetZ += dist;
             if (axis === 'A') targetA += dist;
 
-            if (!isWithinLimits(targetX, targetY, targetZ, targetA)) {
-                // Show which axis is actually blocking
-                let reason = '';
-                if (targetX > 0.01) reason = 'X>' + targetX.toFixed(1);
-                else if (targetX < -workMaxX) reason = 'X<' + targetX.toFixed(1);
-                else if (targetY > 0.01) reason = 'Y>' + targetY.toFixed(1);
-                else if (targetY < -workMaxY) reason = 'Y<' + targetY.toFixed(1);
-                else if (targetZ > 0.01) reason = 'Z>' + targetZ.toFixed(1);
-                else if (targetZ < -workMaxZ) reason = 'Z<' + targetZ.toFixed(1);
-                showBlocked('BLOCKED: ' + reason + ' (pending: X=' + pendingX.toFixed(0) + ' Y=' + pendingY.toFixed(0) + ' Z=' + pendingZ.toFixed(0) + ')');
+            // Only block if the move makes things worse (further out of bounds)
+            var blocked = false, reason = '';
+            if (axis === 'X') {
+                if (targetX > 0.01 && targetX > pendingX) { blocked = true; reason = 'X=' + targetX.toFixed(1); }
+                if (targetX < -workMaxX && targetX < pendingX) { blocked = true; reason = 'X=' + targetX.toFixed(1); }
+            }
+            if (axis === 'Y') {
+                if (targetY > 0.01 && targetY > pendingY) { blocked = true; reason = 'Y=' + targetY.toFixed(1); }
+                if (targetY < -workMaxY && targetY < pendingY) { blocked = true; reason = 'Y=' + targetY.toFixed(1); }
+            }
+            if (axis === 'Z') {
+                if (targetZ > 0.01 && targetZ > pendingZ) { blocked = true; reason = 'Z=' + targetZ.toFixed(1); }
+                if (targetZ < -workMaxZ && targetZ < pendingZ) { blocked = true; reason = 'Z=' + targetZ.toFixed(1); }
+            }
+            if (blocked) {
+                showBlocked('BLOCKED: ' + reason);
                 return;
             }
 
@@ -1629,6 +1648,7 @@
         }
 
         function setStep(step, btn) {
+            debugLog('STEP: ' + step + ' unit=' + currentUnit + ' jogStep(mm)=' + (currentUnit === 'in' ? step * 25.4 : step).toFixed(3) + ' custom=' + (btn.id === 'customStepInput'), 'info');
             jogStep = step;
             document.querySelectorAll('#stepButtons .step-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -1730,44 +1750,35 @@
 
         // ========== JOB CONTROL ==========
         function jobStart() {
+            streamerPaused = false;
+            updateButtonStates();
             if (spindleWasRunning) {
                 sendRealtime(0x9E); // Toggle spindle back on
                 spindleWasRunning = false;
+                document.getElementById('btnRun').style.animation = 'dangerFlash 0.5s infinite';
+                debugLog('Spindle restarting, resuming in 5s...', 'info');
                 setTimeout(() => {
+                    document.getElementById('btnRun').style.animation = '';
                     wsSend({ type: 'cycle_start' });
                     wsSend({ type: 'file_resume' });
-                    streamerPaused = false;
                 }, 5000);
-            } else if (lastMachineState.startsWith('HOLD')) {
-                wsSend({ type: 'cycle_start' });
-                if (streamerPaused) {
-                    wsSend({ type: 'file_resume' });
-                    streamerPaused = false;
-                }
             } else {
-                wsSend({ type: 'file_start' });
+                wsSend({ type: 'cycle_start' });
+                wsSend({ type: 'file_resume' });
             }
         }
 
         function jobPause() {
-            const now = Date.now();
-            if (now - lastJobActionTime < 500) return;
-            lastJobActionTime = now;
             sendRealtime(0x21);  // Feed hold - immediate
-            sendRealtime(0x9E);  // Spindle stop - immediate
+            sendRealtime(0x9E);  // Spindle stop
             wsSend({ type: 'file_pause' });
             streamerPaused = true;
             spindleWasRunning = true;
         }
 
-        let lastJobActionTime = 0;
         function jobStop() {
-            const now = Date.now();
-            if (now - lastJobActionTime < 500) return;
-            lastJobActionTime = now;
-            sendRealtime(0x21);  // Feed hold - immediate stop
-            sendRealtime(0x9E);  // Spindle stop
-            wsSend({ type: 'file_stop' });  // Server handles reset + coordinate restore
+            // Only works from paused state — spindle already off
+            wsSend({ type: 'file_stop' });
             if (macroRunning) {
                 wsSend({ type: 'macro_cancel' });
             }
@@ -1775,6 +1786,7 @@
             streamerPaused = false;
             hideContinue();
             macroRunning = false;
+            document.getElementById('grblBuffer').textContent = '';
             updateButtonStates();
         }
 
@@ -2408,6 +2420,7 @@
             // UI display only - GRBL always works in mm
             // Conversion applied to display/input, never send G20/G21
             currentUnit = (currentUnit === 'mm') ? 'in' : 'mm';
+            debugLog('UNITS: ' + currentUnit, 'info');
             document.getElementById('machineSpeedUnit').textContent = currentUnit + '/min';
             updateStepButtons();
             updateFeedDisplay();
@@ -2519,9 +2532,9 @@
             }
 
             const state = lastMachineState;
-            document.getElementById('btnRun').disabled = !state.startsWith('HOLD');
-            document.getElementById('btnPause').disabled = !(state === 'IDLE' || state === 'RUN');
-            document.getElementById('btnStop').disabled = !(state === 'RUN' || streamerPaused || macroRunning);
+            document.getElementById('btnRun').disabled = !streamerPaused;
+            document.getElementById('btnPause').disabled = !(state === 'RUN' && !streamerPaused);
+            document.getElementById('btnStop').disabled = !streamerPaused;
             document.getElementById('btnUnlock').disabled = !(state === 'ALARM');
             document.getElementById('btnReset').disabled = false;
 
@@ -2633,6 +2646,10 @@
             if (consoleAutoScroll) {
                 log.scrollTop = log.scrollHeight;
             }
+            // Send to server for error.log
+            if (connected && type !== 'sent') {
+                wsSend({ type: 'client_log', message: msg, level: type || 'info' });
+            }
         }
 
         function toggleAutoScroll() {
@@ -2659,11 +2676,9 @@
             btn.style.background = showStatusLog ? '#2a4a2a' : '#4a2a2a';
         }
 
-        function copyDebugLog(e) {
-            e.stopPropagation();
+        function copyDebugLog(btn) {
             const log = document.getElementById('debugLog');
             const text = Array.from(log.children).map(el => el.textContent).join('\n');
-            const btn = e.target;
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text).then(() => {
                     btn.textContent = 'Copied!';
@@ -2742,7 +2757,7 @@
         function cycleStep(direction) {
             const steps = currentUnit === 'mm' ? mmSteps : inSteps;
             const currentIndex = steps.indexOf(jogStep);
-            const newIndex = Math.max(0, Math.min(steps.length - 1, currentIndex + direction));
+            const newIndex = Math.max(0, Math.min(steps.length - 2, currentIndex + direction));
             if (newIndex !== currentIndex) {
                 jogStep = steps[newIndex];
                 const btns = document.querySelectorAll('#stepButtons .step-btn');
@@ -2877,17 +2892,32 @@
             return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
-        function setupCamera() {
+        let cameraOn = false;
+        function toggleCamera() {
             const cam = document.getElementById('camera');
-            const img = document.createElement('img');
-            img.src = CAMERA_URL;
-            img.onerror = () => { cam.innerHTML = '<span>Camera unavailable</span>'; };
-            img.onload = () => { cam.innerHTML = ''; cam.appendChild(img); };
+            const btn = document.getElementById('btnCameraToggle');
+            if (cameraOn) {
+                cam.innerHTML = '<span>Camera off</span>';
+                cameraOn = false;
+                btn.textContent = 'Cam ON';
+                btn.style.background = '#333';
+            } else {
+                const img = document.createElement('img');
+                img.src = CAMERA_URL;
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'contain';
+                img.onerror = () => { cam.innerHTML = '<span>Camera unavailable</span>'; cameraOn = false; btn.textContent = 'Cam ON'; btn.style.background = '#333'; };
+                cam.innerHTML = '';
+                cam.appendChild(img);
+                cameraOn = true;
+                btn.textContent = 'Cam OFF';
+                btn.style.background = '#2a4a2a';
+            }
         }
 
         // ========== INIT ==========
         connect();
-        setupCamera();
         updateStepButtons();
         updateButtonStates();
         document.getElementById('jogFeedInput').value = jogSlowFeed;
