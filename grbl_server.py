@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+VERSION = '1.205'
 """
 GRBL WebSocket Server - CNCjs Replacement
 
@@ -1748,6 +1749,14 @@ def main():
     args = parser.parse_args()
 
     server = GrblServer(args.port, args.serial)
+
+    # Log version of all code files at startup
+    import hashlib, glob
+    elog(f'SERVER VERSION: {VERSION}')
+    for f in sorted(glob.glob('*.py') + glob.glob('macros/*.py')):
+        h = hashlib.md5(open(f, 'rb').read()).hexdigest()[:8]
+        elog(f'  {f}: {h}')
+    elog(f'  jog.html: {hashlib.md5(open("jog.html", "rb").read()).hexdigest()[:8]}')
 
     try:
         asyncio.run(server.start())

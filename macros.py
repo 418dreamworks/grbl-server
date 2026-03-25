@@ -191,8 +191,9 @@ class MacroEngine:
             # G90
             await self._send_and_log('G90')
 
-            # G38.2 Z-78 F600
-            await self._send_and_log('G38.2 Z-78 F600')
+            # Probe fast — use Z max travel from settings
+            z_max = float(self.grbl.settings.get('$132', 80))
+            await self._send_and_log(f'G38.2 Z-{z_max - 2:.0f} F600')
             await self._wait_idle()
 
             # G91
@@ -340,8 +341,9 @@ class MacroEngine:
             # G90
             await self._send_and_log('G90')
 
-            # G38.2 Z-78 F600
-            await self._send_and_log('G38.2 Z-78 F600')
+            # Probe fast — use Z max travel from settings
+            z_max = float(self.grbl.settings.get('$132', 80))
+            await self._send_and_log(f'G38.2 Z-{z_max - 2:.0f} F600')
             await self._wait_idle()
 
             # G91
