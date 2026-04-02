@@ -449,7 +449,11 @@
             <!-- Left column: info rows stacked -->
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.205</span>
+                    <span style="font-size: 11px; color: #666; font-family: monospace;">v1.206</span>
+                    <button id="btnContinue" onclick="macroContinue()" disabled style="padding: 2px 10px; font-size: 11px; background: #1a3a1a; border: 1px solid #3a6a3a; color: #4a4a4a; border-radius: 3px; cursor: pointer; font-weight: bold;">CONTINUE</button>
+                    <button id="btnSkip" onclick="macroSkip()" disabled style="padding: 2px 10px; font-size: 11px; background: #3a3a1a; border: 1px solid #6a6a3a; color: #4a4a4a; border-radius: 3px; cursor: pointer;">SKIP</button>
+                    <button id="btnCancel" onclick="macroCancel()" disabled style="padding: 2px 10px; font-size: 11px; background: #3a1a1a; border: 1px solid #6a3a3a; color: #4a4a4a; border-radius: 3px; cursor: pointer;">CANCEL</button>
+                    <span id="continueDesc" style="font-size: 11px; color: #aaa; font-family: monospace;"></span>
                     <span class="machine-state" id="machineState">DISCONNECTED</span>
                     <!-- File info / Load button -->
                     <input type="file" id="fileInput" accept=".nc,.gcode,.ngc,.tap" style="display:none" onchange="handleFileSelect(event)">
@@ -474,7 +478,8 @@
             <div class="btn-container" style="display: flex; flex-direction: column; justify-content: center; gap: 4px; width: 468px;">
                 <div id="currentLine" style="display:none;">--</div>
                 <div style="display: flex; gap: 16px;">
-                <div class="job-ctrl" style="display: flex; gap: 8px; width: 50%;">
+                <div class="job-ctrl" style="display: flex; gap: 8px; width: 50%; align-items: center;">
+                    <input type="text" id="stepLines" value="0" style="width: 35px; padding: 4px; background: #222; border: 1px solid #444; border-radius: 4px; color: #fff; font-family: monospace; font-size: 12px; text-align: center;" title="Lines to run (0 = all)" onkeydown="event.stopPropagation()">
                     <button id="btnRun" style="flex: 1; background: #2a4a2a; border-color: #3a6a3a;" onclick="jobStart()">Cont</button>
                     <button id="btnPause" style="flex: 1; background: #4a4a2a; border-color: #6a6a3a;" onclick="jobPause()">Pause</button>
                     <button id="btnStop" style="flex: 1; background: #4a2a2a; border-color: #6a3a3a;" onclick="jobStop()">Stop</button>
@@ -494,10 +499,10 @@
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
             <div style="display: flex; align-items: center; min-width: 520px;">
                 <span class="label clickable" onclick="zeroAllAxes()" style="display:inline-block;width:50px;margin-right:15px;" title="Click to zero all axes">WPOS:</span>
-                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('X')" title="Set X value">X:</span><span id="workX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="cmd('G10 L20 P1 X0')">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('Y')" title="Set Y value">Y:</span><span id="workY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="cmd('G10 L20 P1 Y0')">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('Z')" title="Set Z value">Z:</span><span id="workZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" style="margin-right:40px;" onclick="zeroZOnly()">&#x2299;0</button></span>
-                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('A')" title="Set A value">A:</span><span id="workA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('X')" title="Set X value">X:</span><span id="workX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><span id="wtargetX" style="display:inline-block;width:9ch;text-align:right;color:#888;"></span><button class="zero-btn" style="margin-right:20px;" onclick="cmd('G10 L20 P1 X0')">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('Y')" title="Set Y value">Y:</span><span id="workY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><span id="wtargetY" style="display:inline-block;width:9ch;text-align:right;color:#888;"></span><button class="zero-btn" style="margin-right:20px;" onclick="cmd('G10 L20 P1 Y0')">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('Z')" title="Set Z value">Z:</span><span id="workZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><span id="wtargetZ" style="display:inline-block;width:9ch;text-align:right;color:#888;"></span><button class="zero-btn" style="margin-right:20px;" onclick="zeroZOnly()">&#x2299;0</button></span>
+                <span><span style="color: #fc0; cursor:pointer; margin-right:-9px;" onclick="setAxisValue('A')" title="Set A value">A:</span><span id="workA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><span id="wtargetA" style="display:inline-block;width:9ch;text-align:right;color:#888;"></span><button class="zero-btn" onclick="cmd('G10 L20 P1 A0')">&#x2299;0</button></span>
             </div>
             <span id="spindleRPM" onclick="spindleToggle()" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch; cursor: pointer;" title="Click to toggle spindle on/off"><span id="spindleRPMValue" style="display:inline-block;width:5ch;text-align:right;">--</span><span id="spindleRPMUnit" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;">RPM</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
@@ -509,10 +514,10 @@
         <div style="display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; color: #fff; min-width: 520px;">
                 <span class="label clickable" class="idle-only" onclick="runMacro('HOMING')" style="display:inline-block;width:50px;margin-right:15px;cursor:pointer;" title="Click to home all axes">MPOS:</span>
-                <span><span style="color: #fc0; margin-right:-9px;">X:</span><span id="machX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'X'})">&#x2192;0</button></span>
-                <span><span style="color: #fc0; margin-right:-9px;">Y:</span><span id="machY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'Y'})">&#x2192;0</button></span>
-                <span><span style="color: #fc0; margin-right:-9px;">Z:</span><span id="machZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" style="margin-right:40px;" onclick="wsSend({type:'home',axes:'Z'})">&#x2192;0</button></span>
-                <span><span style="color: #fc0; margin-right:-9px;">A:</span><span id="machA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
+                <span><span style="color: #fc0; margin-right:-9px;">X:</span><span id="machX" style="display:inline-block;width:9ch;text-align:right;">---.---</span><span id="mtargetX" style="display:inline-block;width:9ch;text-align:right;color:#888;"></span><button class="zero-btn goto-btn" style="margin-right:20px;" onclick="wsSend({type:'home',axes:'X'})">&#x2192;0</button></span>
+                <span><span style="color: #fc0; margin-right:-9px;">Y:</span><span id="machY" style="display:inline-block;width:9ch;text-align:right;">---.---</span><span id="mtargetY" style="display:inline-block;width:9ch;text-align:right;color:#888;"></span><button class="zero-btn goto-btn" style="margin-right:20px;" onclick="wsSend({type:'home',axes:'Y'})">&#x2192;0</button></span>
+                <span><span style="color: #fc0; margin-right:-9px;">Z:</span><span id="machZ" style="display:inline-block;width:9ch;text-align:right;">---.---</span><span id="mtargetZ" style="display:inline-block;width:9ch;text-align:right;color:#888;"></span><button class="zero-btn goto-btn" style="margin-right:20px;" onclick="wsSend({type:'home',axes:'Z'})">&#x2192;0</button></span>
+                <span><span style="color: #fc0; margin-right:-9px;">A:</span><span id="machA" style="display:inline-block;width:9ch;text-align:right;">---.---</span><span id="mtargetA" style="display:inline-block;width:9ch;text-align:right;color:#888;"></span><button class="zero-btn goto-btn" onclick="homeA()">&#x2192;0</button></span>
             </div>
             <span id="machineSpeed" style="font-size: 20px; font-weight: bold; white-space: nowrap; font-family: monospace; display:inline-block; width:12ch;"><span id="machineSpeedValue" style="display:inline-block;width:5ch;text-align:right;">0</span><span id="machineSpeedUnit" class="clickable" onclick="toggleUnits()" style="display:inline-block;width:7ch;text-align:left;padding-left:1ch;cursor:pointer;text-decoration:underline;">mm/min</span></span>
             <div style="display: flex; gap: 2px; align-items: center;">
@@ -545,19 +550,16 @@
                 <button class="rapid-btn" style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Y0')">Y0</button>
                 <button class="rapid-btn" style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Z0')">Z0</button>
                 <button class="rapid-btn" style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G90 G0 Z10')">Z10</button>
-                <button class="rapid-btn" style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G53 G0 Z-2')" title="Raise Z to near machine home (MPos Z=-2)">Z Top</button>
+                <button class="rapid-btn" style="background:#4a2a2a; border-color:#6a3a3a; min-height:49px; font-size:12px;" onclick="cmd('G53 G0 Z0')" title="Raise Z to machine home (MPos Z=0)">Z Top</button>
             </div>
             <!-- GOTO -->
-            <div style="display: grid; grid-template-columns: auto 1fr auto auto 1fr auto auto 1fr auto; gap: 2px; margin-top:8px; align-items:center;">
-                <span style="font-size:11px; color:#888;">X</span>
+            <div style="display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto; gap: 2px; margin-top:8px; align-items:center;">
                 <input type="text" id="gotoX" value="0" style="padding:6px 4px; font-size:12px; text-align:center; background:#222; color:#fff; border:1px solid #444; border-radius:4px; width:60px;" onkeydown="event.stopPropagation();">
-                <button class="idle-only" onclick="cmd('G90 G0 X' + document.getElementById('gotoX').value)" style="padding:6px 8px; font-size:11px; background:#2a3a4a; border-color:#3a5a7a;">Go</button>
-                <span style="font-size:11px; color:#888;">Y</span>
+                <button class="idle-only" onclick="cmd('G90 G0 X' + document.getElementById('gotoX').value)" style="padding:6px 8px; font-size:11px; background:#2a3a4a; border-color:#3a5a7a;">GO X</button>
                 <input type="text" id="gotoY" value="0" style="padding:6px 4px; font-size:12px; text-align:center; background:#222; color:#fff; border:1px solid #444; border-radius:4px; width:60px;" onkeydown="event.stopPropagation();">
-                <button class="idle-only" onclick="cmd('G90 G0 Y' + document.getElementById('gotoY').value)" style="padding:6px 8px; font-size:11px; background:#2a3a4a; border-color:#3a5a7a;">Go</button>
-                <span style="font-size:11px; color:#888;">Z</span>
+                <button class="idle-only" onclick="cmd('G90 G0 Y' + document.getElementById('gotoY').value)" style="padding:6px 8px; font-size:11px; background:#2a3a4a; border-color:#3a5a7a;">GO Y</button>
                 <input type="text" id="gotoZ" value="0" style="padding:6px 4px; font-size:12px; text-align:center; background:#222; color:#fff; border:1px solid #444; border-radius:4px; width:60px;" onkeydown="event.stopPropagation();">
-                <button class="idle-only" onclick="cmd('G90 G0 Z' + document.getElementById('gotoZ').value)" style="padding:6px 8px; font-size:11px; background:#2a3a4a; border-color:#3a5a7a;">Go</button>
+                <button class="idle-only" onclick="cmd('G90 G0 Z' + document.getElementById('gotoZ').value)" style="padding:6px 8px; font-size:11px; background:#2a3a4a; border-color:#3a5a7a;">GO Z</button>
             </div>
             <!-- JOG -->
             <div style="font-size:14.5px; color:#888; text-align:center; margin-top:20px;">JOG</div>
@@ -625,9 +627,9 @@
                 <div style="margin-top:20px;">
                     <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">PROBE</div>
                     <div style="display: flex; gap: 8px;">
-                        <button style="flex:1; min-height:49px; background:#2a3a4a; border-color:#3a5a7a;" class="idle-only" onclick="runProbeZ()" title="Probe Z surface with touch plate (22mm). Sets Z=22 at contact.">Z</button>
                         <button style="flex:1; min-height:49px; background:#2a3a4a; border-color:#3a5a7a;" class="idle-only" onclick="showProbeModal('probe_x')" title="Probe X edge (left/right).">X</button>
                         <button style="flex:1; min-height:49px; background:#2a3a4a; border-color:#3a5a7a;" class="idle-only" onclick="showProbeModal('probe_y')" title="Probe Y edge (front/back).">Y</button>
+                        <button style="flex:1; min-height:49px; background:#2a3a4a; border-color:#3a5a7a;" class="idle-only" onclick="runProbeZ()" title="Probe Z surface with touch plate (22mm). Sets Z=22 at contact.">Z</button>
                     </div>
                 </div>
                 <!-- ROTARY -->
@@ -636,9 +638,6 @@
                     <div style="display: flex; gap: 4px;">
                         <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" class="idle-only" onclick="showToolDiaModal('rotary_chuck_y')" title="Set Y=0 at rotary center. Tool edge against reference surface.">ChuckY</button>
                         <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" class="idle-only" onclick="runMacro('rotary_chuck_z')" title="Set Z=0 at rotary center. Z=0 on jaw surface.">ChuckZ</button>
-                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" class="idle-only" onclick="showToolDiaModal('rotary_parallel')" title="Parallel check. Probes Y at two X positions 50mm apart.">Parallel</button>
-
-                        <button style="flex:1; min-height:49px; background:#4a4a2a; border-color:#6a6a3a; font-size:11px;" class="idle-only" onclick="startRotaryTurning()" title="Rotary turning cycle. Cuts from start diameter to end diameter between X positions, with helical plunge and springback passes.">Turning</button>
                     </div>
                 </div>
                 <!-- MILLING -->
@@ -650,17 +649,6 @@
                         <button style="min-height:49px; background:#2a2a4a; border-color:#3a3a6a; font-size:11px;" onclick="showToolDiaModal('milling_drill')" title="Peck drill at current XY. Pecks in increments of tool_dia/2, retracts to clear chips each peck.">Drill</button>
                         <button style="min-height:49px; background:#4a3a2a; border-color:#6a5a3a; font-size:11px;" onclick="showToolDiaModal('milling_line_contour')" title="Line slot or zigzag face. Width=0: single slot along Y. Width>0: zigzag passes to cover width. DOC from config.">Line</button>
                         <button style="min-height:49px; background:#3a4a3a; border-color:#5a6a5a; font-size:11px;" onclick="showToolDiaModal('milling_od_contour')" title="Circular OD pocket. Helical plunge at center, spiral out to diameter. Multiple depth passes from config DOC.">OD</button>
-                        <button style="min-height:49px; background:#5a3a3a; border-color:#7a5a5a; font-size:11px;" onclick="runMacro('spindle_breakin')" title="Spindle break-in cycle. Runs spindle at increasing RPMs for timed intervals to break in bearings.">Break-In</button>
-                    </div>
-                </div>
-                <!-- SAFETY -->
-                <div style="margin-top:20px;">
-                    <div style="font-size:14.5px; color:#888; margin-bottom:4px; text-align:center;">SAFETY</div>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
-                        <button style="min-height:49px; background:#3a3a3a; border-color:#555; font-size:12px;" onclick="addFixture()" title="Add a fixture (clamp/hold-down) at current XY with specified radius. Used for collision checking against loaded G-code.">Add Fixture</button>
-                        <button style="min-height:49px; background:#4a2a2a; border-color:#6a3a3a; font-size:12px;" onclick="clearFixtures()" title="Remove all fixtures from collision checking.">Clear Fixtures</button>
-                        <button style="min-height:49px; background:#2a3a4a; border-color:#3a5a6a; font-size:12px;" onclick="runZCheck()" title="Plunge to G-code max depth at current XY for visual verification before cutting.">Z Check</button>
-                        <button style="min-height:49px; background:#2a3a4a; border-color:#3a5a6a; font-size:12px;" onclick="runXYCheck()" title="Trace XY bounds of loaded G-code at safe Z height to verify work envelope.">XY Check</button>
                     </div>
                 </div>
                 <!-- DEBUG -->
@@ -671,13 +659,13 @@
         </div>
     </div>
 
-    <!-- Right Column - Camera/G-code/Fixtures Toggle -->
+    <!-- Right Column - Camera/G-code/Console Toggle -->
     <div class="right-col">
         <div style="display: flex; gap: 4px; margin-bottom: 8px;">
             <button id="btnViewCamera" onclick="showView('camera')" style="flex: 1; padding: 6px; font-size: 12px; background: #2a4a2a; border-color: #3a6a3a;">Camera</button>
             <button id="btnCameraToggle" onclick="toggleCamera()" style="padding: 6px; font-size: 11px; background: #333;">Cam ON</button>
             <button id="btnViewGcode" onclick="showView('gcode')" style="flex: 1; padding: 6px; font-size: 12px;">G-code</button>
-            <button id="btnViewFixtures" onclick="showView('fixtures')" style="flex: 1; padding: 6px; font-size: 12px;">Fixtures</button>
+            <button onclick="checkGcode()" style="padding: 6px; font-size: 10px; background: #333;">Chk</button>
             <button id="btnViewConsole" onclick="showView('console')" style="flex: 1; padding: 6px; font-size: 12px;">Console</button>
         </div>
         <div class="section" style="flex: 1; position: relative;">
@@ -685,9 +673,6 @@
                 <span>No camera feed</span>
             </div>
             <div id="gcodeViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow-y: auto; font-family: monospace; font-size: 12px; padding: 8px;"><span style="color:#666;">No file loaded</span>
-            </div>
-            <div id="fixturesViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow: hidden;">
-                <canvas id="fixturesCanvas" style="width: 100%; height: 100%;"></canvas>
             </div>
             <div id="consoleViewer" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #111; border-radius: 4px; overflow: hidden; flex-direction: column;">
                 <div style="display: flex; align-items: center; padding: 4px 8px; border-bottom: 1px solid #333; flex-shrink: 0;">
@@ -714,17 +699,7 @@
         <select id="macroSelect"></select><textarea id="macroEditor"></textarea>
     </div>
 
-    <!-- M0 Continue Overlay -->
-    <div id="continueOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;">
-        <div style="display:flex; flex-direction:column; align-items:center; gap:20px;">
-            <button onclick="macroContinue(); hideContinue();" style="padding: 80px 160px; font-size: 72px; font-weight: bold; background: #2a6a2a; border: 6px solid #4a9a4a; color: #fff; border-radius: 24px; cursor: pointer; box-shadow: 0 0 60px rgba(0,255,0,0.3); text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">
-                CONTINUE<br><span id="continueDesc" style="font-size: 24px; color: #aaa; white-space: pre-line;">Swap tool, then press to resume</span>
-            </button>
-            <button onclick="wsSend({type:'macro_cancel'}); hideContinue();" style="padding: 15px 40px; font-size: 24px; background: #6a2a2a; border: 3px solid #8a3a3a; color: #fff; border-radius: 12px; cursor: pointer;">
-                Cancel
-            </button>
-        </div>
-    </div>
+    <!-- Continue overlay removed - buttons now in status bar -->
 
     <!-- Start Job Dialog (shown after file load) -->
     <div class="modal" id="startJobModal" onclick="if(event.target===this)closeStartJobModal()">
@@ -741,17 +716,7 @@
                 <input type="number" id="startLine" value="1" min="1" style="width: 100px; padding: 6px; background: #222; border: 1px solid #444; border-radius: 4px; color: #fff; font-family: monospace;">
             </div>
             <div style="margin-bottom: 16px;">
-                <label style="cursor: pointer; display: block; margin-bottom: 8px;">
-                    <input type="checkbox" id="spindleFirst" style="margin-right: 8px;" onchange="updateSpindleSpeedDisplay()">
-                    Turn on spindle first
-                </label>
-                <div id="spindleSpeedSelector" style="display: none; margin-left: 24px;">
-                    <button onclick="adjustStartSpindle(-1000)" style="padding: 4px 8px; font-size: 14px;">-</button>
-                    <span id="startSpindleSpeed" style="display: inline-block; width: 60px; text-align: center; font-family: monospace; font-weight: bold;">12000</span>
-                    <button onclick="adjustStartSpindle(1000)" style="padding: 4px 8px; font-size: 14px;">+</button>
-                    <span style="color: #888; margin-left: 4px;">RPM</span>
-                </div>
-                <label style="cursor: pointer; display: block; margin-top: 8px;">
+                <label style="cursor: pointer; display: block;">
                     <input type="checkbox" id="airCut" style="margin-right: 8px;">
                     Air cut (no spindle, max speed)
                 </label>
@@ -874,6 +839,27 @@
         let pendingX = 0, pendingY = 0, pendingZ = 0, pendingA = 0;
         let lastMachineState = '';
         let pendingInitialized = false;
+
+        function updateTargets() {
+            var desync = Math.max(
+                Math.abs(pendingX - machPosX), Math.abs(pendingY - machPosY),
+                Math.abs(pendingZ - machPosZ), Math.abs(pendingA - machPosA)
+            );
+            // MPOS targets (pending is already in machine coords)
+            document.getElementById('mtargetX').textContent = roundDisplay(pendingX);
+            document.getElementById('mtargetY').textContent = roundDisplay(pendingY);
+            document.getElementById('mtargetZ').textContent = roundDisplay(pendingZ);
+            document.getElementById('mtargetA').textContent = pendingA.toFixed(3);
+            // WPOS targets (pending - WCO)
+            var wcoX = machPosX - (parseFloat(document.getElementById('workX').textContent) || 0);
+            var wcoY = machPosY - (parseFloat(document.getElementById('workY').textContent) || 0);
+            var wcoZ = machPosZ - (parseFloat(document.getElementById('workZ').textContent) || 0);
+            var wcoA = machPosA - (parseFloat(document.getElementById('workA').textContent) || 0);
+            document.getElementById('wtargetX').textContent = roundDisplay(pendingX - wcoX);
+            document.getElementById('wtargetY').textContent = roundDisplay(pendingY - wcoY);
+            document.getElementById('wtargetZ').textContent = roundDisplay(pendingZ - wcoZ);
+            document.getElementById('wtargetA').textContent = (pendingA - wcoA).toFixed(3);
+        }
         let connected = false;
         let currentPort = '';
         let setZDone = false;
@@ -920,7 +906,7 @@
                 connected = true;
                 document.getElementById('machineState').textContent = 'CONNECTED';
                 document.getElementById('machineState').className = 'machine-state idle';
-                wsSend({ type: 'connect', port: '/dev/ttyACM0' });
+                wsSend({ type: 'connect', port: '/dev/ttyGRBL' });
                 wsSend({ type: 'list_ports' });
                 wsSend({ type: 'settings' });
                 wsSend({ type: 'macro_list' });
@@ -981,6 +967,9 @@
                     lp.textContent = msg.error;
                     lp.style.color = '#f66';
                     setTimeout(function(){ lp.style.color = ''; }, 10000);
+                    fileRunning = false;
+                    macroRunning = false;
+                    updateButtonStates();
                     break;
                 case 'macro_status': handleMacroStatus(msg); break;
                 case 'macro_done':   handleMacroDone(msg); break;
@@ -995,12 +984,13 @@
             }
         }
 
+        function roundDisplay(val) {
+            if (currentUnit === 'in') return (val / 25.4).toFixed(3);
+            return (Math.round(val / 0.025) * 0.025).toFixed(3);
+        }
+
         // ========== STATUS HANDLING ==========
         function handleStatus(msg) {
-            function roundDisplay(val) {
-                if (currentUnit === 'in') return (val / 25.4).toFixed(3);
-                return (Math.round(val / 0.025) * 0.025).toFixed(3);
-            }
 
             // Work position
             if (msg.wpos) {
@@ -1026,6 +1016,7 @@
                     pendingX = machPosX; pendingY = machPosY;
                     pendingZ = machPosZ; pendingA = machPosA;
                     pendingInitialized = true;
+                    updateTargets();
                 }
 
                 // Auto-sync when IDLE with desync
@@ -1038,6 +1029,7 @@
                         pendingX = machPosX; pendingY = machPosY;
                         pendingZ = machPosZ; pendingA = machPosA;
                     }
+                    updateTargets();
                     // DEBUG button - no auto-update, user controls content
                 }
 
@@ -1045,11 +1037,6 @@
                 document.getElementById('machY').textContent = roundDisplay(machPosY);
                 document.getElementById('machZ').textContent = roundDisplay(machPosZ);
                 document.getElementById('machA').textContent = machPosA.toFixed(3);
-
-                // Update fixtures view if active (for live tool position)
-                if (typeof currentView !== 'undefined' && currentView === 'fixtures') {
-                    renderFixturesView();
-                }
 
                 lastMachineState = currentState;
             }
@@ -1218,14 +1205,8 @@
             reader.readAsText(file);
         }
 
-        let startSpindleSpeed = 12000;
-
         function openStartJobModal() {
             document.getElementById('startLine').value = '1';
-            document.getElementById('spindleFirst').checked = false;
-            startSpindleSpeed = 12000;
-            document.getElementById('startSpindleSpeed').textContent = '12000';
-            document.getElementById('spindleSpeedSelector').style.display = 'none';
             document.getElementById('startJobModal').style.display = 'flex';
         }
 
@@ -1233,30 +1214,13 @@
             document.getElementById('startJobModal').style.display = 'none';
         }
 
-        function updateSpindleSpeedDisplay() {
-            const checked = document.getElementById('spindleFirst').checked;
-            document.getElementById('spindleSpeedSelector').style.display = checked ? 'block' : 'none';
-        }
-
-        function adjustStartSpindle(delta) {
-            startSpindleSpeed = Math.max(1000, Math.min(30000, startSpindleSpeed + delta));
-            document.getElementById('startSpindleSpeed').textContent = startSpindleSpeed;
-        }
-
         function startJobFromModal() {
             const fromLine = parseInt(document.getElementById('startLine').value) || 1;
-            const spindleFirst = document.getElementById('spindleFirst').checked;
             const airCut = document.getElementById('airCut').checked;
+
 
             closeStartJobModal();
 
-            // Turn on spindle first if requested (not in air cut mode)
-            if (spindleFirst && !airCut) {
-                wsSend({ type: 'gcode', line: 'M3 S' + startSpindleSpeed });
-                debugLog('Spindle ON (M3 S' + startSpindleSpeed + ')', 'info');
-            }
-
-            // Start streaming
             const payload = { type: 'file_start' };
             if (fromLine > 1) payload.from_line = fromLine;
             if (airCut) payload.air_cut = true;
@@ -1266,6 +1230,10 @@
 
         function handleFileStatus(msg) {
             fileRunning = true;
+            if (msg.auto_paused) {
+                streamerPaused = true;
+                updateButtonStates();
+            }
             document.getElementById('fileName').textContent = msg.filename || '';
             const pct = (msg.percent || 0).toFixed(1);
             document.getElementById('lineProgress').textContent =
@@ -1423,6 +1391,7 @@
             fileRunning = false;
             debugLog('=== FILE COMPLETE: ' + msg.filename + ' (' + msg.total + ' lines) ===', 'info');
             document.getElementById('progressFill').style.width = '100%';
+            updateButtonStates();
         }
 
         function handleFileError(msg) {
@@ -1442,25 +1411,41 @@
             }
         }
 
+        function showContinueButtons(desc) {
+            document.getElementById('btnContinue').disabled = false;
+            document.getElementById('btnContinue').style.color = '#4f4';
+            document.getElementById('btnSkip').disabled = false;
+            document.getElementById('btnSkip').style.color = '#ff0';
+            document.getElementById('btnCancel').disabled = false;
+            document.getElementById('btnCancel').style.color = '#f66';
+            document.getElementById('continueDesc').textContent = desc || '';
+        }
+
+        function hideContinueButtons() {
+            document.getElementById('btnContinue').disabled = true;
+            document.getElementById('btnContinue').style.color = '#4a4a4a';
+            document.getElementById('btnSkip').disabled = true;
+            document.getElementById('btnSkip').style.color = '#4a4a4a';
+            document.getElementById('btnCancel').disabled = true;
+            document.getElementById('btnCancel').style.color = '#4a4a4a';
+            document.getElementById('continueDesc').textContent = '';
+        }
+
         function handleMacroStatus(msg) {
             macroRunning = true;
             updateButtonStates();
-            // Log status to console instead of showing modal
             debugLog('[' + (msg.name || 'MACRO') + '] Step ' + msg.step + '/' + msg.total + ': ' + msg.description, 'info');
-            // Show CONTINUE overlay when waiting for user (tool change)
             if (msg.waiting) {
-                document.getElementById('continueDesc').textContent = msg.description || 'Press to resume';
-                document.querySelector('#continueOverlay button:first-child').innerHTML = 'CONTINUE<br><span id="continueDesc" style="font-size: 24px; color: #aaa; white-space: pre-line;">' + (msg.description || 'Press to resume') + '</span>';
-                document.getElementById('continueOverlay').style.display = 'flex';
+                showContinueButtons(msg.description || 'Press CONTINUE to resume');
             }
         }
 
         function handleMacroDone(msg) {
             macroRunning = false;
-            document.getElementById('continueOverlay').style.display = 'none';
+            hideContinueButtons();
             const input = document.getElementById('gcodeInput');
             input.value = '';
-            input.style.color = '#fff';  // Reset color
+            input.style.color = '#fff';
             debugLog('=== MACRO COMPLETE: ' + msg.name + ' ===', 'info');
             if (msg.name === 'set_z' || msg.name === 'tool_measure') setZDone = true;
             updateButtonStates();
@@ -1468,25 +1453,28 @@
 
         function handleMacroError(msg) {
             macroRunning = false;
-            document.getElementById('continueOverlay').style.display = 'none';
+            hideContinueButtons();
             const input = document.getElementById('gcodeInput');
             input.value = '';
             input.style.color = '#fff';
             debugLog('MACRO ERROR (' + msg.name + '): ' + msg.error, 'error');
-            // Show prominent error overlay
-            document.getElementById('continueDesc').textContent = 'ERROR: ' + msg.error;
-            document.getElementById('continueOverlay').style.display = 'flex';
-            document.querySelector('#continueOverlay button:first-child').textContent = 'OK';
+            wsSend({ type: 'gcode', line: 'M5' });
             updateButtonStates();
         }
 
         function macroCancel() {
             wsSend({ type: 'macro_cancel' });
-            document.getElementById('continueOverlay').style.display = 'none';
+            hideContinueButtons();
+        }
+
+        function macroSkip() {
+            wsSend({ type: 'macro_skip' });
+            hideContinueButtons();
         }
 
         function macroContinue() {
             wsSend({ type: 'macro_continue' });
+            hideContinueButtons();
         }
 
         // ========== COMMANDS ==========
@@ -1612,6 +1600,7 @@
             }
             pendingX = targetX;
             pendingY = targetY;
+            updateTargets();
             cmd('G53 G0 X' + targetX.toFixed(1) + ' Y' + targetY.toFixed(1));
         }
 
@@ -1657,6 +1646,7 @@
 
             pendingX = targetX; pendingY = targetY;
             pendingZ = targetZ; pendingA = targetA;
+            updateTargets();
             if (jogFeedMode === 'rapid') {
                 jogCmd('G91 G0 ' + axis + dist);
             } else {
@@ -1775,6 +1765,8 @@
 
         // ========== JOB CONTROL ==========
         function jobStart() {
+            var n = parseInt(document.getElementById('stepLines').value) || 0;
+            wsSend({ type: 'file_set_pause_n', n: n });
             streamerPaused = false;
             updateButtonStates();
             if (spindleWasRunning) {
@@ -1810,310 +1802,14 @@
             }
             spindleWasRunning = false;
             streamerPaused = false;
-            hideContinue();
+            hideContinueButtons();
             macroRunning = false;
             document.getElementById('grblBuffer').textContent = '';
             updateButtonStates();
         }
 
-        // ========== VIEW STATE (must be before fixtures) ==========
+        // ========== VIEW STATE ==========
         let currentView = 'camera';
-
-        // ========== FIXTURES ==========
-        let fixtures = JSON.parse(localStorage.getItem('fixtures') || '[]');
-        updateFixtureCount();
-
-        function updateFixtureCount() {
-            // Refresh fixtures view if active
-            if (currentView === 'fixtures') renderFixturesView();
-        }
-
-        function addFixture() {
-            // Use current work position
-            const x = parseFloat(document.getElementById('workX').textContent);
-            const y = parseFloat(document.getElementById('workY').textContent);
-            if (isNaN(x) || isNaN(y)) {
-                alert('No valid position');
-                return;
-            }
-            const radius = prompt('Fixture radius (mm)?', '15');
-            if (!radius) return;
-            const height = prompt('Fixture height above Z0 (mm)?', '10');
-            if (!height) return;
-            fixtures.push({ x: x, y: y, radius: parseFloat(radius), height: parseFloat(height) });
-            localStorage.setItem('fixtures', JSON.stringify(fixtures));
-            updateFixtureCount();
-            debugLog('Fixture added at X' + x.toFixed(1) + ' Y' + y.toFixed(1) + ' R' + radius + ' H' + height, 'info');
-        }
-
-        function clearFixtures() {
-            if (fixtures.length === 0) return;
-            if (!confirm('Clear all ' + fixtures.length + ' fixtures?')) return;
-            fixtures = [];
-            localStorage.setItem('fixtures', JSON.stringify(fixtures));
-            updateFixtureCount();
-            debugLog('Fixtures cleared', 'info');
-            if (currentView === 'fixtures') renderFixturesView();
-        }
-
-        function renderFixturesView() {
-            const canvas = document.getElementById('fixturesCanvas');
-            const container = document.getElementById('fixturesViewer');
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-            const ctx = canvas.getContext('2d');
-
-            // Clear
-            ctx.fillStyle = '#111';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Scale to fit work area with margin
-            // Machine coords: 0 at top-right, negative going left/down
-            const margin = 30;
-            const scaleX = (canvas.width - margin * 2) / workMaxX;
-            const scaleY = (canvas.height - margin * 2) / workMaxY;
-            const scale = Math.min(scaleX, scaleY);
-
-            // Machine coords: 0 is at right edge, -workMaxX at left
-            // Machine coords: 0 is at top edge, -workMaxY at bottom
-            function toCanvasX(machX) { return canvas.width - margin + machX * scale; }
-            function toCanvasY(machY) { return margin - machY * scale; }
-
-            // Draw work area boundary (soft limits rectangle)
-            // Machine area is from (0,0) at top-right to (-workMaxX, -workMaxY) at bottom-left
-            ctx.strokeStyle = '#4a4a6a';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(toCanvasX(-workMaxX), toCanvasY(0), workMaxX * scale, workMaxY * scale);
-
-            // Label corners with machine coordinates
-            ctx.fillStyle = '#666';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'right';
-            ctx.fillText('0, 0', toCanvasX(0) - 3, toCanvasY(0) + 12);
-            ctx.textAlign = 'left';
-            ctx.fillText('-' + workMaxX + ', -' + workMaxY, toCanvasX(-workMaxX) + 3, toCanvasY(-workMaxY) - 3);
-
-            // Draw grid
-            ctx.strokeStyle = '#222';
-            ctx.lineWidth = 0.5;
-            const gridStep = 50;
-            for (let x = 0; x <= workMaxX; x += gridStep) {
-                ctx.beginPath();
-                ctx.moveTo(toCanvasX(-x), toCanvasY(0));
-                ctx.lineTo(toCanvasX(-x), toCanvasY(-workMaxY));
-                ctx.stroke();
-            }
-            for (let y = 0; y <= workMaxY; y += gridStep) {
-                ctx.beginPath();
-                ctx.moveTo(toCanvasX(0), toCanvasY(-y));
-                ctx.lineTo(toCanvasX(-workMaxX), toCanvasY(-y));
-                ctx.stroke();
-            }
-
-            // Convert work coords to machine coords
-            // Work (0,0) = far corner, Work (workMaxX, workMaxY) = near home
-            // Machine (0,0) = home, Machine (-workMaxX, -workMaxY) = far corner
-            function workToMachX(wx) { return wx - workMaxX; }
-            function workToMachY(wy) { return wy - workMaxY; }
-
-            // Draw fixtures as circles (stored in work coords, display in machine)
-            ctx.fillStyle = 'rgba(255, 100, 100, 0.3)';
-            ctx.strokeStyle = '#f66';
-            ctx.lineWidth = 2;
-            for (let f of fixtures) {
-                const mx = workToMachX(f.x);
-                const my = workToMachY(f.y);
-                ctx.beginPath();
-                ctx.arc(toCanvasX(mx), toCanvasY(my), f.radius * scale, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-                // Label
-                ctx.fillStyle = '#fff';
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('H' + f.height, toCanvasX(mx), toCanvasY(my) + 4);
-                ctx.fillStyle = 'rgba(255, 100, 100, 0.3)';
-            }
-
-            // Draw current tool position (use machine coords directly)
-            const mx = parseFloat(document.getElementById('machX').textContent) || 0;
-            const my = parseFloat(document.getElementById('machY').textContent) || 0;
-            ctx.fillStyle = '#0f0';
-            ctx.beginPath();
-            ctx.arc(toCanvasX(mx), toCanvasY(my), 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Info text
-            ctx.fillStyle = '#888';
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText(fixtures.length + ' fixture(s)', margin, canvas.height - 20);
-            ctx.fillText('Machine: ' + workMaxX + ' x ' + workMaxY, margin, canvas.height - 5);
-        }
-
-        // Check if point (x,y) at height z collides with any fixture
-        function checkFixtureCollision(x, y, z) {
-            for (let f of fixtures) {
-                if (z < f.height) {
-                    const dist = Math.sqrt((x - f.x) ** 2 + (y - f.y) ** 2);
-                    if (dist < f.radius) {
-                        return f;
-                    }
-                }
-            }
-            return null;
-        }
-
-        // Check if line segment from (x1,y1) to (x2,y2) passes through fixture circle
-        function lineIntersectsFixture(x1, y1, x2, y2, fx, fy, fr) {
-            // Vector from p1 to p2
-            const dx = x2 - x1;
-            const dy = y2 - y1;
-            // Vector from p1 to fixture center
-            const fx1 = fx - x1;
-            const fy1 = fy - y1;
-            // Project fixture center onto line
-            const len2 = dx * dx + dy * dy;
-            if (len2 === 0) return Math.sqrt(fx1 * fx1 + fy1 * fy1) < fr;
-            let t = (fx1 * dx + fy1 * dy) / len2;
-            t = Math.max(0, Math.min(1, t));
-            const closestX = x1 + t * dx;
-            const closestY = y1 + t * dy;
-            const dist = Math.sqrt((fx - closestX) ** 2 + (fy - closestY) ** 2);
-            return dist < fr;
-        }
-
-        // ========== CODE CHECK ==========
-        function runZCheck() {
-            if (!gcodeLines.length) {
-                alert('Load a G-code file first');
-                return;
-            }
-            if (fixtures.length === 0) {
-                alert('No fixtures defined');
-                return;
-            }
-
-            let x = 0, y = 0, z = 0;
-            let absolute = true;
-            const collisions = [];
-
-            for (let i = 0; i < gcodeLines.length; i++) {
-                const line = gcodeLines[i].toUpperCase().trim();
-                if (!line || line.startsWith('(') || line.startsWith(';')) continue;
-
-                // Track G90/G91
-                if (line.includes('G90')) absolute = true;
-                if (line.includes('G91')) absolute = false;
-
-                // Parse coordinates
-                const xMatch = line.match(/X([-\d.]+)/);
-                const yMatch = line.match(/Y([-\d.]+)/);
-                const zMatch = line.match(/Z([-\d.]+)/);
-
-                let newX = x, newY = y, newZ = z;
-                if (xMatch) newX = absolute ? parseFloat(xMatch[1]) : x + parseFloat(xMatch[1]);
-                if (yMatch) newY = absolute ? parseFloat(yMatch[1]) : y + parseFloat(yMatch[1]);
-                if (zMatch) newZ = absolute ? parseFloat(zMatch[1]) : z + parseFloat(zMatch[1]);
-
-                // Check for collision along this move
-                const minZ = Math.min(z, newZ);
-                for (let f of fixtures) {
-                    if (minZ < f.height && lineIntersectsFixture(x, y, newX, newY, f.x, f.y, f.radius)) {
-                        collisions.push({ line: i + 1, gcode: gcodeLines[i], fixture: f });
-                    }
-                }
-
-                x = newX; y = newY; z = newZ;
-            }
-
-            if (collisions.length === 0) {
-                alert('No collisions detected with ' + fixtures.length + ' fixture(s)');
-            } else {
-                let msg = collisions.length + ' collision(s) found:\n\n';
-                for (let c of collisions.slice(0, 10)) {
-                    msg += 'L' + c.line + ': ' + c.gcode.substring(0, 40) + '\n';
-                }
-                if (collisions.length > 10) msg += '... and ' + (collisions.length - 10) + ' more';
-                alert(msg);
-            }
-            debugLog('Z Check: ' + collisions.length + ' collisions', collisions.length ? 'error' : 'info');
-        }
-
-        function runXYCheck() {
-            if (!gcodeLines.length) {
-                alert('Load a G-code file first');
-                return;
-            }
-            if (fixtures.length === 0) {
-                alert('No fixtures defined');
-                return;
-            }
-
-            let x = 0, y = 0, z = 0;
-            let absolute = true;
-            const safeZ = Math.max(...fixtures.map(f => f.height)) + 5; // 5mm above tallest fixture
-            let modified = false;
-            let newLines = [];
-
-            for (let i = 0; i < gcodeLines.length; i++) {
-                const line = gcodeLines[i];
-                const upper = line.toUpperCase().trim();
-                if (!upper || upper.startsWith('(') || upper.startsWith(';')) {
-                    newLines.push(line);
-                    continue;
-                }
-
-                // Track G90/G91
-                if (upper.includes('G90')) absolute = true;
-                if (upper.includes('G91')) absolute = false;
-
-                // Parse coordinates
-                const xMatch = upper.match(/X([-\d.]+)/);
-                const yMatch = upper.match(/Y([-\d.]+)/);
-                const zMatch = upper.match(/Z([-\d.]+)/);
-
-                let newX = x, newY = y, newZ = z;
-                if (xMatch) newX = absolute ? parseFloat(xMatch[1]) : x + parseFloat(xMatch[1]);
-                if (yMatch) newY = absolute ? parseFloat(yMatch[1]) : y + parseFloat(yMatch[1]);
-                if (zMatch) newZ = absolute ? parseFloat(zMatch[1]) : z + parseFloat(zMatch[1]);
-
-                // Check if this is a rapid (G0) that collides
-                const isRapid = upper.includes('G0') || (upper.match(/^[XYZ]/) && !upper.includes('G1'));
-                const minZ = Math.min(z, newZ);
-                let collision = null;
-
-                for (let f of fixtures) {
-                    if (minZ < f.height && lineIntersectsFixture(x, y, newX, newY, f.x, f.y, f.radius)) {
-                        collision = f;
-                        break;
-                    }
-                }
-
-                if (isRapid && collision) {
-                    // Reroute: lift, move, lower
-                    newLines.push('G0 Z' + safeZ.toFixed(3) + ' (lift over fixture)');
-                    newLines.push('G0 X' + newX.toFixed(3) + ' Y' + newY.toFixed(3) + ' (move over)');
-                    if (zMatch) {
-                        newLines.push('G0 Z' + newZ.toFixed(3) + ' (lower to target)');
-                    }
-                    modified = true;
-                    debugLog('L' + (i+1) + ': Rerouted rapid around fixture', 'info');
-                } else {
-                    newLines.push(line);
-                }
-
-                x = newX; y = newY; z = newZ;
-            }
-
-            if (modified) {
-                gcodeLines = newLines;
-                renderGcode(gcodeLines);
-                alert('Rapids rerouted. Review G-code before running.');
-            } else {
-                alert('No rapid collisions found - G-code OK');
-            }
-        }
 
         // ========== MACROS ==========
         function runMacro(name) {
@@ -2240,7 +1936,7 @@
             }
 
             // Rotary macros - run directly with tool diameter
-            if (pendingMacro === 'rotary_chuck_y' || pendingMacro === 'rotary_parallel') {
+            if (pendingMacro === 'rotary_chuck_y') {
                 debugLog('=== MACRO: ' + pendingMacro + ' (tool=' + toolDiameter + 'mm) ===', 'info');
                 wsSend({ type: 'macro_run', name: pendingMacro, tool_diameter: toolDiameter });
                 pendingMacro = '';
@@ -2309,26 +2005,6 @@
             const macroName = pendingMacro;
             const toolDiameter = pendingToolDia;
 
-            // Rotary turning has its own param list + stock_shape
-            if (macroName === 'rotary_turning') {
-                const keys = ['tool_diameter', 'stock_dim', 'd_start', 'x_start', 'd_end', 'x_end'];
-                const msg = { type: 'macro_run', name: 'rotary_turning', stock_shape: turningStockShape, feed_override: pendingMacroFeed };
-                for (const key of keys) {
-                    const input = document.getElementById('mp_' + key);
-                    const val = parseFloat(input.value);
-                    if (isNaN(val)) { input.focus(); return; }
-                    msg[key] = val;
-                    setMacroDefault('rotary_turning', key, val);
-                }
-                setMacroFeed('rotary_turning', pendingMacroFeed);
-                document.getElementById('macroParamsModal').classList.remove('open');
-                debugLog('=== MACRO: rotary_turning (tool=' + msg.tool_diameter + 'mm, feed=' + pendingMacroFeed + ') ===', 'info');
-                wsSend(msg);
-                pendingMacro = '';
-                pendingToolDia = 0;
-                return;
-            }
-
             const params = MACRO_PARAMS[macroName];
             if (!params) return;
 
@@ -2369,67 +2045,6 @@
             debugLog('=== PROBE: ' + pendingMacro + ' ' + edgeName + ' (tool=' + pendingToolDia + 'mm) ===', 'info');
             wsSend({ type: 'macro_run', name: pendingMacro, tool_diameter: pendingToolDia, edge_sign: edgeSign });
             closeProbeEdgeModal();
-        }
-
-        // ========== ROTARY TURNING ==========
-        let turningStockShape = 'square';
-
-        function startRotaryTurning() {
-            if (!connected) return;
-            pendingMacro = 'rotary_turning';
-
-            // Build turning params modal
-            const params = [
-                { label: 'Tool Dia', key: 'tool_diameter', def: 6 },
-                { label: 'Stock Dim', key: 'stock_dim', def: 25 },
-                { label: 'D Start', key: 'd_start', def: 20 },
-                { label: 'X Start', key: 'x_start', def: 0 },
-                { label: 'D End', key: 'd_end', def: 20 },
-                { label: 'X End', key: 'x_end', def: 50 }
-            ];
-
-            document.getElementById('macroParamsTitle').textContent = 'ROTARY TURNING';
-            const container = document.getElementById('macroParamsFields');
-
-            // Stock shape toggle
-            turningStockShape = localStorage.getItem('macro_rotary_turning_stock_shape') || 'square';
-            let html = `<div style="display:flex; gap:6px; margin-bottom:10px;">
-                <button id="stockSquareBtn" onclick="setStockShape('square')" style="flex:1; padding:10px; font-size:13px;">SQUARE</button>
-                <button id="stockCircleBtn" onclick="setStockShape('circle')" style="flex:1; padding:10px; font-size:13px;">CIRCLE</button>
-            </div>`;
-
-            params.forEach(p => {
-                const val = getMacroDefault('rotary_turning', p.key, p.def);
-                html += `<div class="macro-param-row">
-                    <label>${p.label}</label>
-                    <input type="number" step="0.001" id="mp_${p.key}" value="${val}">
-                    <span class="unit-label">mm</span>
-                </div>`;
-            });
-            container.innerHTML = html;
-
-            // Feed selector
-            pendingMacroFeed = getMacroFeed('rotary_turning');
-            updateFeedButtons();
-            updateStockShapeButtons();
-
-            document.getElementById('macroParamsModal').classList.add('open');
-        }
-
-        function setStockShape(shape) {
-            turningStockShape = shape;
-            localStorage.setItem('macro_rotary_turning_stock_shape', shape);
-            updateStockShapeButtons();
-        }
-
-        function updateStockShapeButtons() {
-            const sq = document.getElementById('stockSquareBtn');
-            const ci = document.getElementById('stockCircleBtn');
-            if (!sq || !ci) return;
-            sq.style.background = turningStockShape === 'square' ? '#1a4a1a' : '#2a2a2a';
-            sq.style.borderColor = turningStockShape === 'square' ? '#4f4' : '#555';
-            ci.style.background = turningStockShape === 'circle' ? '#1a4a1a' : '#2a2a2a';
-            ci.style.borderColor = turningStockShape === 'circle' ? '#4f4' : '#555';
         }
 
         // ========== UNITS ==========
@@ -2527,6 +2142,8 @@
         // ========== BUTTON STATES ==========
         function updateButtonStates() {
             const gcodeInput = document.getElementById('gcodeInput');
+            const state = lastMachineState;
+            const busy = state === 'RUN' || state === 'HOME' || state === 'HOLD' || macroRunning;
 
             if (!connected) {
                 document.getElementById('btnRun').disabled = true;
@@ -2534,42 +2151,31 @@
                 document.getElementById('btnStop').disabled = true;
                 document.getElementById('btnUnlock').disabled = true;
                 document.getElementById('btnReset').disabled = true;
+                document.querySelectorAll('.idle-only').forEach(el => el.disabled = true);
+                document.querySelectorAll('.rapid-btn').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = true);
-                document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = true);
-                document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = true);
-                gcodeInput.disabled = true;
-                return;
-            }
-
-            // During macro run, disable most controls except stop/reset
-            if (macroRunning) {
-                document.getElementById('btnRun').disabled = true;
-                document.getElementById('btnPause').disabled = true;
-                document.getElementById('btnStop').disabled = false;  // Allow stop
-                document.getElementById('btnUnlock').disabled = true;
-                document.getElementById('btnReset').disabled = false;  // Allow reset
-                document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = true);
-                document.querySelectorAll('.zero-btn').forEach(btn => btn.disabled = true);  // Disable zero/set buttons
-                document.querySelectorAll('button[onclick^="runMacro"]').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('.zero-btn').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('button[onclick^="runMacro("]').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('button[onclick^="showToolDiaModal"]').forEach(btn => btn.disabled = true);
                 document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = true);
                 gcodeInput.disabled = true;
                 return;
             }
 
-            const state = lastMachineState;
+            // Job controls
             document.getElementById('btnRun').disabled = !streamerPaused;
             document.getElementById('btnPause').disabled = !(state === 'RUN' && !streamerPaused);
             document.getElementById('btnStop').disabled = !streamerPaused;
-            document.getElementById('btnUnlock').disabled = !(state === 'ALARM');
+            document.getElementById('btnUnlock').disabled = (state !== 'ALARM');
             document.getElementById('btnReset').disabled = false;
 
-            // Disable controls during file streaming or macros
-            const busy = fileRunning || macroRunning;
+            // Everything else: disabled when busy, enabled when idle
             document.querySelectorAll('.idle-only').forEach(el => el.disabled = busy);
             document.querySelectorAll('.rapid-btn').forEach(btn => btn.disabled = busy);
             document.querySelectorAll('.goto-btn').forEach(btn => btn.disabled = busy);
             document.querySelectorAll('.zero-btn').forEach(btn => btn.disabled = busy);
+            document.querySelectorAll('button[onclick^="runMacro("]').forEach(btn => btn.disabled = busy);
+            document.querySelectorAll('button[onclick^="showToolDiaModal"]').forEach(btn => btn.disabled = busy);
             document.querySelectorAll('button[onclick^="jog("], .xy-grid button, .step-btn').forEach(btn => btn.disabled = busy);
             gcodeInput.disabled = busy;
         }
@@ -2592,9 +2198,6 @@
             cmd('G90 G0 A0');
         }
 
-        function hideContinue() {
-            document.getElementById('continueOverlay').style.display = 'none';
-        }
 
         // ========== WORK COORDINATE MODAL ==========
         let currentWorkCoords = { x: 0, y: 0, z: 0, a: 0 };
@@ -2645,6 +2248,7 @@
         }
 
         function zeroAllAxes() {
+            if (!confirm('Zero ALL axes (X, Y, Z, A)?')) return;
             cmd('G10 L20 P1 X0 Y0 Z0 A0');
         }
 
@@ -2838,9 +2442,8 @@
             // Use visibility instead of display so camera maintains container size
             document.getElementById('camera').style.visibility = view === 'camera' ? 'visible' : 'hidden';
             document.getElementById('gcodeViewer').style.display = view === 'gcode' ? 'block' : 'none';
-            document.getElementById('fixturesViewer').style.display = view === 'fixtures' ? 'block' : 'none';
             document.getElementById('consoleViewer').style.display = view === 'console' ? 'flex' : 'none';
-            ['Camera','Gcode','Fixtures','Console'].forEach(name => {
+            ['Camera','Gcode','Console'].forEach(name => {
                 const btn = document.getElementById('btnView' + name);
                 if (btn) {
                     const active = view === name.toLowerCase();
@@ -2852,15 +2455,42 @@
             if (view === 'gcode' && gcodeLines.length) {
                 updateGcodeViewer(null, gcodeCurrentLine);
             }
-            // Render fixtures view when switching to it
-            if (view === 'fixtures') {
-                renderFixturesView();
-            }
             // Scroll console to bottom when switching to it
             if (view === 'console') {
                 const log = document.getElementById('debugLog');
                 log.scrollTop = log.scrollHeight;
             }
+        }
+
+        function checkGcode() {
+            if (!gcodeLines.length) { debugLog('CHECK: No file loaded', 'error'); return; }
+            var issues = [];
+            var modalMotion = null; // track G0/G1/G2/G3
+            for (var i = 0; i < gcodeLines.length; i++) {
+                var line = gcodeLines[i].replace(/[;(].*/g, '').trim().toUpperCase();
+                if (!line) continue;
+                // Track modal motion mode
+                if (/\bG0*0\b/.test(line)) modalMotion = 'G0';
+                if (/\bG0*1\b/.test(line)) modalMotion = 'G1';
+                if (/\bG0*2\b/.test(line)) modalMotion = 'G2';
+                if (/\bG0*3\b/.test(line)) modalMotion = 'G3';
+                // Check 1: G1/G2/G3 motion without explicit F
+                var isMotion = /\bG0*[123]\b/.test(line) || (modalMotion && modalMotion !== 'G0' && /[XYZAIJK]/.test(line) && !/\bG0*0\b/.test(line));
+                if (isMotion && !/F[\d.]/.test(line)) {
+                    issues.push('L' + (i+1) + ': Missing F — ' + gcodeLines[i].trim());
+                }
+                // Check 2: B or C axis
+                if (/\b[BC][-\d.]/.test(line)) {
+                    issues.push('L' + (i+1) + ': B/C axis — ' + gcodeLines[i].trim());
+                }
+            }
+            if (issues.length === 0) {
+                debugLog('CHECK: File OK, no issues found (' + gcodeLines.length + ' lines)', 'info');
+            } else {
+                debugLog('CHECK: ' + issues.length + ' issue(s) found:', 'error');
+                for (var j = 0; j < issues.length; j++) debugLog('  ' + issues[j], 'error');
+            }
+            showView('console');
         }
 
         function updateGcodeViewer(lines, currentLine) {

@@ -46,7 +46,7 @@ total += (self.grbl.status.wpos['x'] - pre_x)
 
 # 4. Back off and refine
 await self._send_and_log(f'G0 X{self.edge_sign * 1}')
-await self._send_and_log(f'G38.3 X{-self.edge_sign * 2} F10')
+await self._send_and_log(f'G38.3 X{-self.edge_sign * 2} F1')
 await self._wait_idle()
 
 # 5. Set coordinate (absolute) - sign depends on edge!
